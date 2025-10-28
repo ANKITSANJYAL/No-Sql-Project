@@ -1,0 +1,10 @@
+# Python dependencies for RamsNavigator
+
+# Neo4j driver
+neo4j==5.20.0
+
+# MongoDB driver
+pymongo==4.8.0
+
+# Additional utilities (optional)
+python-dotenv==1.0.1

@@ -1,0 +1,19 @@
+{
+  "name": "ramsnavigator",
+  "version": "1.0.0",
+  "description": "Indoor campus navigation system using Neo4j and MongoDB",
+  "main": "index.js",
+  "scripts": {
+    "test": "node tests/test-neo4j-cloud.js && node tests/test-mongodb-cloud.js",
+    "test:neo4j": "node tests/test-neo4j-cloud.js",
+    "test:mongodb": "node tests/test-mongodb-cloud.js"
+  },
+  "keywords": ["neo4j", "mongodb", "campus", "navigation"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "neo4j-driver": "^5.20.0",
+    "mongodb": "^6.5.0",
+    "dotenv": "^16.4.5"
+  }
+}
