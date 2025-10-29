@@ -6,7 +6,10 @@
   "scripts": {
     "test": "node tests/test-neo4j-cloud.js && node tests/test-mongodb-cloud.js",
     "test:neo4j": "node tests/test-neo4j-cloud.js",
-    "test:mongodb": "node tests/test-mongodb-cloud.js"
+    "test:mongodb": "node tests/test-mongodb-cloud.js",
+    "setup:locations": "node db/setup.js",
+    "seed:locations": "node db/load_sample.js"
+    ,"upload:images": "node db/upload_images.js"
   },
   "keywords": ["neo4j", "mongodb", "campus", "navigation"],
   "author": "",

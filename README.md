@@ -67,6 +67,80 @@ npm run test:neo4j    # Test Neo4j only
 npm run test:mongodb  # Test MongoDB only
 ```
 
+## MongoDB Locations Setup
+
+### Initial Setup (Run Once)
+
+```bash
+npm run setup:locations    # Create collection + indexes + validation
+npm run seed:locations     # Load 3 sample locations with 1 image
+```
+
+### Locations Schema
+
+```javascript
+{
+  _id: "1001",                    // String (matches Neo4j node ID)
+  name: "Main Lobby",
+  description: "...",
+  building: "McGinley Center",
+  floor: 1,
+  type: "lobby",                  // lobby, classroom, elevator, stairs, etc.
+  images: [
+    {
+      file_id: ObjectId("..."),   // GridFS reference
+      alt_text: "...",
+      orientation: "landscape",   // landscape, portrait, square
+      is_primary: true
+    }
+  ],
+  amenities: ["seating", "wifi"],
+  accessibility: {
+    wheelchair_accessible: true,
+    automatic_doors: true,
+    elevator_nearby: true
+  },
+  metadata: {
+    last_updated: ISODate("..."),
+    data_source: "manual_seed"
+  }
+}
+```
+
+### Indexes (Auto-Created)
+
+- `{ building: 1, floor: 1 }` — Query by building + floor
+- `{ type: 1 }` — Filter by location type
+- `{ amenities: 1 }` — Search amenities
+- `{ name: "text", description: "text" }` — Text search
+
+### Working with Images
+
+**Upload images to GridFS:**
+```bash
+# Put images in ./images folder, then:
+npm run upload:images
+# Output: lobby.jpg -> 6901758bd582ff466f82fc96
+```
+
+**Link image to location (Atlas UI):**
+1. Go to `locations` collection → Edit document
+2. Add to `images` array:
+```javascript
+{
+  file_id: ObjectId("6901758bd582ff466f82fc96"),
+  alt_text: "Main lobby entrance",
+  orientation: "landscape",
+  is_primary: true
+}
+```
+
+**View uploaded images (Atlas UI):**
+- Browse Collections → `images.files` (metadata)
+- Browse Collections → `images.chunks` (file data)
+
+**Note:** GridFS stores images in MongoDB; no external URLs needed.
+
 ## Connection Strings
 
 ### Neo4j
@@ -93,10 +167,13 @@ const db = client.db(process.env.MONGODB_DATABASE);
 No-Sql-Project/
 ├── config.env              # Database credentials (not in git)
 ├── package.json            # Node.js dependencies
-├── requirements.txt        # Python dependencies (optional)
-├── README.md              # This file
-├── .gitignore             # Git ignore rules
-└── tests/                 # Connection test scripts
+├── README.md               # This file
+├── images/                 # Store images for upload
+├── db/                     # Database setup scripts
+│   ├── setup.js            # Create locations collection + indexes
+│   ├── load_sample.js      # Seed sample data
+│   └── upload_images.js    # Bulk upload images to GridFS
+└── tests/                  # Connection test scripts
     ├── test-neo4j-cloud.js
     └── test-mongodb-cloud.js
 ```
