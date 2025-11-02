@@ -30,6 +30,67 @@ let neo4j;
 // ============================================================================
 
 /**
+ * GET /api/locations/search?q=query
+ * Search locations by name or description
+ * NOTE: Must be defined BEFORE /api/locations/:id to avoid route conflict
+ */
+app.get('/api/locations/search', async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || q.trim() === '') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Search query parameter "q" is required'
+      });
+    }
+
+    const searchQuery = q.trim();
+
+    // Create text search query - MongoDB text search on name and description
+    // Note: This requires a text index. Alternative: regex search for flexibility
+    // Using $or to search in both name and description fields
+    const searchRegex = new RegExp(searchQuery, 'i'); // Case-insensitive
+
+    const locations = await db.collection('locations')
+      .find({
+        $or: [
+          { name: searchRegex },
+          { description: searchRegex }
+        ]
+      })
+      .project({
+        _id: 1,
+        name: 1,
+        description: 1,
+        building: 1,
+        floor: 1,
+        type: 1,
+        amenities: 1,
+        accessibility: 1,
+        images: { $slice: 1 }
+      })
+      .sort({ name: 1 })
+      .limit(50) // Limit results for performance
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      query: searchQuery,
+      count: locations.length,
+      data: locations
+    });
+
+  } catch (error) {
+    console.error('Error searching locations:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to search locations'
+    });
+  }
+});
+
+/**
  * GET /api/locations/:id
  * Get full details for a specific location by ID
  */
@@ -239,35 +300,89 @@ app.post('/api/locations/batch', async (req, res) => {
   }
 });
 
-/**
- * GET /api/locations/search?q=query
- * Search locations by name or description
- */
-app.get('/api/locations/search', async (req, res) => {
-  try {
-    const { q } = req.query;
+// ============================================================================
+// NAVIGATION/PATHFINDING ENDPOINTS (Neo4j + MongoDB)
+// ============================================================================
 
-    if (!q || q.trim() === '') {
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'Search query parameter "q" is required'
-      });
+/**
+ * Helper function to find navigation path between two locations
+ * Combines Neo4j pathfinding with MongoDB location enrichment
+ */
+async function findNavigationPath(startId, endId) {
+  const session = neo4j.session();
+  
+  try {
+    // Check if locations exist in MongoDB
+    const startLocation = await db.collection('locations').findOne({ _id: startId });
+    const endLocation = await db.collection('locations').findOne({ _id: endId });
+
+    if (!startLocation) {
+      throw { status: 404, message: `Start location with ID '${startId}' not found` };
     }
 
-    const searchQuery = q.trim();
+    if (!endLocation) {
+      throw { status: 404, message: `End location with ID '${endId}' not found` };
+    }
 
-    // Create text search query - MongoDB text search on name and description
-    // Note: This requires a text index. Alternative: regex search for flexibility
-    // Using $or to search in both name and description fields
-    const searchRegex = new RegExp(searchQuery, 'i'); // Case-insensitive
+    // If start and end are the same
+    if (startId === endId) {
+      const locationDetails = await db.collection('locations').findOne({ _id: startId });
+      return {
+        start: startId,
+        end: endId,
+        path: [startId],
+        totalDistance: 0,
+        estimatedTime: '0 min',
+        steps: [
+          {
+            step: 1,
+            locationId: startId,
+            location: locationDetails,
+            instruction: `You are already at ${locationDetails.name}`,
+            distance: 0,
+            cumulativeDistance: 0,
+            type: 'start'
+          }
+        ],
+        metadata: {
+          startLocation: startLocation,
+          endLocation: endLocation,
+          totalSteps: 1,
+          generatedAt: new Date().toISOString()
+        }
+      };
+    }
 
-    const locations = await db.collection('locations')
-      .find({
-        $or: [
-          { name: searchRegex },
-          { description: searchRegex }
-        ]
-      })
+    // Query Neo4j for shortest path
+    const pathQuery = `
+      MATCH path = shortestPath(
+        (start:Location {id: $startId})-[:CONNECTED_TO*]-(end:Location {id: $endId})
+      )
+      RETURN 
+        [node in nodes(path) | node.id] as locationIds,
+        [rel in relationships(path) | rel.instructions] as instructions,
+        [rel in relationships(path) | rel.distance] as distances,
+        reduce(total = 0, rel in relationships(path) | total + rel.distance) as totalDistance
+    `;
+
+    const pathResult = await session.run(pathQuery, { startId, endId });
+
+    // Check if path exists
+    if (pathResult.records.length === 0 || pathResult.records[0].get('locationIds').length === 0) {
+      throw { 
+        status: 404, 
+        message: `No path found between '${startLocation.name}' and '${endLocation.name}'` 
+      };
+    }
+
+    const locationIds = pathResult.records[0].get('locationIds');
+    const instructions = pathResult.records[0].get('instructions');
+    const distances = pathResult.records[0].get('distances');
+    const totalDistance = pathResult.records[0].get('totalDistance') || 0;
+
+    // Fetch all location details from MongoDB in batch (reusing same logic as batch endpoint)
+    const locationDetails = await db.collection('locations')
+      .find({ _id: { $in: locationIds } })
       .project({
         _id: 1,
         name: 1,
@@ -275,26 +390,174 @@ app.get('/api/locations/search', async (req, res) => {
         building: 1,
         floor: 1,
         type: 1,
+        images: 1,
         amenities: 1,
-        accessibility: 1,
-        images: { $slice: 1 }
+        accessibility: 1
       })
-      .sort({ name: 1 })
-      .limit(50) // Limit results for performance
       .toArray();
 
+    // Create location map for quick lookup
+    const locationMap = {};
+    locationDetails.forEach(loc => {
+      locationMap[loc._id] = loc;
+    });
+
+    // Build enriched path steps
+    const steps = [];
+    let cumulativeDistance = 0;
+
+    for (let i = 0; i < locationIds.length; i++) {
+      const locationId = locationIds[i];
+      const location = locationMap[locationId];
+
+      if (i === 0) {
+        // First step - starting point
+        steps.push({
+          step: i + 1,
+          locationId: locationId,
+          location: location,
+          instruction: `Start at ${location.name}`,
+          distance: 0,
+          cumulativeDistance: 0,
+          type: 'start'
+        });
+      } else {
+        // Subsequent steps with navigation instructions
+        const instruction = instructions[i - 1] || `Continue to ${location.name}`;
+        const stepDistance = distances[i - 1] || 0;
+        cumulativeDistance += stepDistance;
+
+        steps.push({
+          step: i + 1,
+          locationId: locationId,
+          location: location,
+          instruction: instruction,
+          distance: stepDistance,
+          cumulativeDistance: cumulativeDistance,
+          type: i === locationIds.length - 1 ? 'destination' : 'waypoint'
+        });
+      }
+    }
+
+    // Calculate estimated time (assuming average walking speed of 1.2 m/s)
+    const estimatedTimeSeconds = Math.ceil(totalDistance / 1.2);
+    const estimatedTimeMinutes = Math.ceil(estimatedTimeSeconds / 60);
+    const estimatedTime = estimatedTimeMinutes === 0 ? '< 1 min' : `${estimatedTimeMinutes} min`;
+
+    return {
+      start: startId,
+      end: endId,
+      path: locationIds,
+      totalDistance: totalDistance,
+      estimatedTime: estimatedTime,
+      steps: steps,
+      metadata: {
+        startLocation: startLocation,
+        endLocation: endLocation,
+        totalSteps: steps.length,
+        generatedAt: new Date().toISOString()
+      }
+    };
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * GET /api/navigate?start=locationId&end=locationId
+ * Find navigation path between two locations using Neo4j and enrich with MongoDB data
+ */
+app.get('/api/navigate', async (req, res) => {
+  try {
+    const { start, end } = req.query;
+
+    // Validate input
+    if (!start || start.trim() === '') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Start location ID is required (query parameter: start)'
+      });
+    }
+
+    if (!end || end.trim() === '') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'End location ID is required (query parameter: end)'
+      });
+    }
+
+    const startId = start.trim();
+    const endId = end.trim();
+
+    // Find path using helper function
+    const pathData = await findNavigationPath(startId, endId);
+    
     res.status(200).json({
       success: true,
-      query: searchQuery,
-      count: locations.length,
-      data: locations
+      ...pathData
     });
 
   } catch (error) {
-    console.error('Error searching locations:', error);
+    if (error.status) {
+      return res.status(error.status).json({
+        error: error.status === 404 ? 'Not Found' : 'Bad Request',
+        message: error.message
+      });
+    }
+    console.error('Error finding navigation path:', error);
     res.status(500).json({
       error: 'Internal Server Error',
-      message: 'Failed to search locations'
+      message: 'Failed to find navigation path'
+    });
+  }
+});
+
+/**
+ * POST /api/navigate
+ * Find navigation path between two locations (alternative endpoint with POST body)
+ * Request body: { start: "locationId", end: "locationId" }
+ */
+app.post('/api/navigate', async (req, res) => {
+  try {
+    const { start, end } = req.body;
+
+    // Validate input
+    if (!start || typeof start !== 'string' || start.trim() === '') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Start location ID is required in request body: { "start": "locationId", "end": "locationId" }'
+      });
+    }
+
+    if (!end || typeof end !== 'string' || end.trim() === '') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'End location ID is required in request body: { "start": "locationId", "end": "locationId" }'
+      });
+    }
+
+    const startId = start.trim();
+    const endId = end.trim();
+
+    // Find path using helper function
+    const pathData = await findNavigationPath(startId, endId);
+    
+    res.status(200).json({
+      success: true,
+      ...pathData
+    });
+
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({
+        error: error.status === 404 ? 'Not Found' : 'Bad Request',
+        message: error.message
+      });
+    }
+    console.error('Error finding navigation path:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to find navigation path'
     });
   }
 });
@@ -307,6 +570,30 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Debug endpoint to list all registered routes (development only)
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/api/debug/routes', (req, res) => {
+    const routes = [];
+    app._router.stack.forEach((middleware) => {
+      if (middleware.route) {
+        const methods = Object.keys(middleware.route.methods).map(m => m.toUpperCase()).join(', ');
+        routes.push(`${methods} ${middleware.route.path}`);
+      } else if (middleware.name === 'router') {
+        middleware.handle.stack.forEach((handler) => {
+          if (handler.route) {
+            const methods = Object.keys(handler.route.methods).map(m => m.toUpperCase()).join(', ');
+            routes.push(`${methods} ${handler.route.path}`);
+          }
+        });
+      }
+    });
+    res.json({
+      routes: routes.sort(),
+      total: routes.length
+    });
+  });
+}
 
 // 404 handler for undefined routes
 app.use((req, res) => {
