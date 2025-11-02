@@ -1,0 +1,67 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* Fordham Colors */
+  --primary-color: #8B2332;        /* Fordham Maroon */
+  --primary-dark: #6D1B27;         /* Darker Maroon */
+  --primary-light: #A0384A;        /* Lighter Maroon */
+  --secondary-color: #FFFFFF;      /* White */
+  --accent-color: #8B2332;         /* Maroon accent */
+  
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --text-light: #999999;
+  
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f5e6e8;          /* Light maroon tint */
+  
+  --border-color: #dee2e6;
+  --shadow-sm: 0 2px 4px rgba(139, 35, 50, 0.08);
+  --shadow-md: 0 4px 6px rgba(139, 35, 50, 0.12);
+  --shadow-lg: 0 10px 25px rgba(139, 35, 50, 0.2);
+  
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  
+  --transition: all 0.3s ease;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+code {
+  font-family: 'Courier New', monospace;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+input {
+  font-family: inherit;
+  outline: none;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+

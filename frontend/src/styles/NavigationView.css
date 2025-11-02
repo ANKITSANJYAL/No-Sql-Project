@@ -1,0 +1,261 @@
+.navigation-view {
+  padding: 40px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.navigation-container {
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.navigation-header {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  color: white;
+  padding: 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.navigation-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.route-info {
+  display: flex;
+  gap: 24px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  opacity: 0.95;
+}
+
+.navigation-content {
+  padding: 30px;
+}
+
+/* Current Step Visual */
+.current-step-visual {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: 30px;
+  margin-bottom: 30px;
+}
+
+.step-image-container {
+  margin-bottom: 24px;
+}
+
+.step-image-placeholder {
+  width: 100%;
+  height: 300px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-light);
+  gap: 12px;
+}
+
+.image-placeholder-text {
+  font-size: 0.9rem;
+  margin-top: 8px;
+}
+
+.step-instruction {
+  text-align: center;
+}
+
+.step-number {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.instruction-text {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.step-distance {
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+/* Step Controls */
+.step-controls {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 30px;
+  justify-content: center;
+}
+
+.step-btn {
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: var(--transition);
+}
+
+.prev-btn {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.prev-btn:hover:not(:disabled) {
+  background: var(--border-color);
+}
+
+.next-btn {
+  background: var(--primary-color);
+  color: white;
+}
+
+.next-btn:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.step-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* All Steps Overview */
+.all-steps {
+  border-top: 2px solid var(--bg-secondary);
+  padding-top: 30px;
+}
+
+.steps-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: var(--text-primary);
+}
+
+.steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.step-item {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition);
+  border: 2px solid transparent;
+}
+
+.step-item:hover {
+  background: var(--bg-secondary);
+}
+
+.step-item.active {
+  background: rgba(139, 35, 50, 0.05);
+  border-color: var(--primary-color);
+}
+
+.step-item.completed .step-marker {
+  background: var(--primary-color);
+  color: white;
+}
+
+.step-marker {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  transition: var(--transition);
+}
+
+.step-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.step-text {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.step-meta {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .navigation-view {
+    padding: 20px 10px;
+  }
+  
+  .navigation-header {
+    padding: 20px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .navigation-title {
+    font-size: 1.5rem;
+  }
+  
+  .route-info {
+    gap: 16px;
+  }
+  
+  .navigation-content {
+    padding: 20px;
+  }
+  
+  .current-step-visual {
+    padding: 20px;
+  }
+  
+  .step-image-placeholder {
+    height: 200px;
+  }
+  
+  .instruction-text {
+    font-size: 1.25rem;
+  }
+  
+  .step-controls {
+    flex-direction: column;
+  }
+  
+  .step-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
