@@ -6,6 +6,7 @@ function SearchBar({ onSearch, onLocationSelect, startValue, endValue }) {
   const [startInput, setStartInput] = useState(startValue || '');
   const [endInput, setEndInput] = useState(endValue || '');
   const [selectedStartLocation, setSelectedStartLocation] = useState(null);
+  const [selectedEndLocation, setSelectedEndLocation] = useState(null);
   const [startSuggestions, setStartSuggestions] = useState([]);
   const [endSuggestions, setEndSuggestions] = useState([]);
   const [allLocations, setAllLocations] = useState([]);
@@ -34,8 +35,18 @@ function SearchBar({ onSearch, onLocationSelect, startValue, endValue }) {
   useEffect(() => {
     if (endValue !== undefined) {
       setEndInput(endValue);
+      // If endValue is set and matches a location, set it as selected
+      if (endValue && allLocations.length > 0) {
+        const matchingLocation = allLocations.find(loc => loc.name === endValue);
+        if (matchingLocation) {
+          setSelectedEndLocation(matchingLocation);
+        }
+      } else if (!endValue) {
+        // If cleared, also clear selected end location
+        setSelectedEndLocation(null);
+      }
     }
-  }, [endValue]);
+  }, [endValue, allLocations]);
 
   // Fetch all locations on component mount
   useEffect(() => {
@@ -240,14 +251,29 @@ function SearchBar({ onSearch, onLocationSelect, startValue, endValue }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (startInput && endInput) {
-      // Call onSearch with location names
-      // TODO: Update to use location IDs when navigation API is integrated
-      onSearch(startInput, endInput);
+    if (startInput && endInput && selectedStartLocation && selectedEndLocation) {
+      // Call onSearch with location IDs for API call
+      onSearch(selectedStartLocation.id, selectedEndLocation.id, selectedStartLocation.name, selectedEndLocation.name);
       setStartSuggestions([]);
       setEndSuggestions([]);
       setStartInputFocused(false);
       setEndInputFocused(false);
+    } else {
+      // If locations are not selected from suggestions, try to find them
+      const startLoc = allLocations.find(loc => loc.name === startInput);
+      const endLoc = allLocations.find(loc => loc.name === endInput);
+      
+      if (startLoc && endLoc) {
+        setSelectedStartLocation(startLoc);
+        setSelectedEndLocation(endLoc);
+        onSearch(startLoc.id, endLoc.id, startLoc.name, endLoc.name);
+        setStartSuggestions([]);
+        setEndSuggestions([]);
+        setStartInputFocused(false);
+        setEndInputFocused(false);
+      } else {
+        alert('Please select locations from the suggestions');
+      }
     }
   };
 
@@ -266,6 +292,7 @@ function SearchBar({ onSearch, onLocationSelect, startValue, endValue }) {
   const handleEndSuggestionClick = (location) => {
     // Make sure we're setting the end input, not start
     setEndInput(location.name);
+    setSelectedEndLocation(location); // Store selected end location
     setEndSuggestions([]);
     setEndInputFocused(false);
     // Don't trigger onLocationSelect for destination - it's for showing details popup
