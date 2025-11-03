@@ -76,8 +76,8 @@
   padding: 12px 16px;
   cursor: pointer;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 6px;
   transition: var(--transition);
 }
 
@@ -85,9 +85,16 @@
   background: var(--bg-secondary);
 }
 
+.suggestion-item > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .suggestion-name {
   font-weight: 500;
   color: var(--text-primary);
+  flex: 1;
 }
 
 .suggestion-type {
@@ -97,6 +104,12 @@
   background: var(--bg-tertiary);
   padding: 4px 10px;
   border-radius: var(--radius-sm);
+}
+
+.suggestion-building {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-top: 4px;
 }
 
 .search-button {

@@ -64,7 +64,73 @@ Complete API reference and testing guide for all endpoints in the RamsNavigator 
 
 ## Location Endpoints
 
-### 1. Get Location by ID
+### 1. Get All Locations
+
+Get all locations from the database with optional filtering by building and floor.
+
+**Endpoint:** `GET /api/locations`
+
+**Query Parameters:**
+- `building` (optional) - Filter by building name
+- `floor` (optional) - Filter by floor number
+- `limit` (optional) - Limit number of results (default: 1000)
+
+**Example Request:**
+```bash
+# Get all locations
+curl -X GET http://localhost:3001/api/locations
+
+# Get all locations in a specific building
+curl -X GET "http://localhost:3001/api/locations?building=Lowenstein%20Center"
+
+# Get all locations with limit
+curl -X GET "http://localhost:3001/api/locations?limit=50"
+
+# Get all locations on a specific floor of a building
+curl -X GET "http://localhost:3001/api/locations?building=Lowenstein%20Center&floor=8"
+```
+
+**Example Response (200 OK):**
+```json
+{
+  "success": true,
+  "count": 5,
+  "data": [
+    {
+      "_id": "lowenstein_entrance",
+      "name": "Lowenstein Center Main Entrance",
+      "description": "Main entrance to Lowenstein Center",
+      "building": "Lowenstein Center",
+      "floor": 1,
+      "type": "entrance",
+      "amenities": ["security_desk", "automatic_doors"],
+      "accessibility": {
+        "wheelchair_accessible": true,
+        "automatic_doors": true,
+        "elevator_nearby": true
+      },
+      "images": [...]
+    }
+    // ... more locations
+  ]
+}
+```
+
+**Features:**
+- Returns all locations by default
+- Supports optional filtering by building and/or floor
+- Results sorted by building, floor, then name
+- Uses projections for optimal performance
+- Default limit of 1000 locations
+
+**Use Cases:**
+- Populating location dropdowns in frontend
+- Getting initial location list for autocomplete
+- Filtering locations by building or floor
+
+---
+
+### 2. Get Location by ID
 
 Get full details for a specific location.
 
@@ -111,7 +177,7 @@ curl -X GET http://localhost:3001/api/locations/lowenstein_ll817
 
 ---
 
-### 2. Get Locations by Building
+### 3. Get Locations by Building
 
 Get all locations in a specific building.
 
@@ -158,7 +224,7 @@ curl -X GET "http://localhost:3001/api/locations/building/Lowenstein%20Center"
 
 ---
 
-### 3. Get Locations by Building and Floor
+### 4. Get Locations by Building and Floor
 
 Get all locations on a specific floor of a building.
 
@@ -201,7 +267,7 @@ curl -X GET "http://localhost:3001/api/locations/floor/Lowenstein%20Center/8"
 
 ---
 
-### 4. Batch Get Locations
+### 5. Batch Get Locations
 
 Get multiple locations by providing an array of IDs. Useful for enriching path data or fetching custom location lists.
 
@@ -253,7 +319,7 @@ curl -X POST http://localhost:3001/api/locations/batch \
 
 ---
 
-### 5. Search Locations
+### 6. Search Locations
 
 Search locations by name or description using case-insensitive regex matching.
 
@@ -313,7 +379,7 @@ curl "http://localhost:3001/api/locations/search?q=Lowenstein"
 
 ## Navigation Endpoints
 
-### 6. Get Navigation Path (GET)
+### 7. Get Navigation Path (GET)
 
 Find the shortest navigation path between two locations using Neo4j pathfinding and enrich with MongoDB location details.
 
@@ -422,7 +488,7 @@ curl -X GET "http://localhost:3001/api/navigate?start=lowenstein_entrance&end=lo
 
 ---
 
-### 7. Get Navigation Path (POST)
+### 8. Get Navigation Path (POST)
 
 Alternative endpoint for navigation using POST body instead of query parameters.
 
@@ -455,7 +521,7 @@ Same as GET endpoint above.
 
 ## Utility Endpoints
 
-### 8. Health Check
+### 9. Health Check
 
 Check if the API server is running and healthy.
 
@@ -482,7 +548,7 @@ curl -X GET http://localhost:3001/api/health
 
 ---
 
-### 9. Debug Routes (Development Only)
+### 10. Debug Routes (Development Only)
 
 List all registered API routes. **Only available in development mode** (when `NODE_ENV !== 'production'`).
 
@@ -499,6 +565,7 @@ curl -X GET http://localhost:3001/api/debug/routes
   "routes": [
     "GET /api/debug/routes",
     "GET /api/health",
+    "GET /api/locations",
     "GET /api/locations/building/:building",
     "GET /api/locations/floor/:building/:floor",
     "GET /api/locations/search",
@@ -507,7 +574,7 @@ curl -X GET http://localhost:3001/api/debug/routes
     "POST /api/locations/batch",
     "POST /api/navigate"
   ],
-  "total": 9
+  "total": 10
 }
 ```
 
@@ -537,6 +604,7 @@ All endpoints can be tested using cURL commands. Examples are provided in each e
    ```
    Collection: RamsNavigator API
    ├── Location Endpoints
+   │   ├── Get All Locations
    │   ├── Get Location by ID
    │   ├── Get Locations by Building
    │   ├── Get Locations by Floor
@@ -554,6 +622,18 @@ All endpoints can be tested using cURL commands. Examples are provided in each e
 
 ```javascript
 const API_BASE = 'http://localhost:3001/api';
+
+// Example: Get all locations
+async function getAllLocations(building, floor, limit) {
+  const params = new URLSearchParams();
+  if (building) params.append('building', building);
+  if (floor) params.append('floor', floor);
+  if (limit) params.append('limit', limit);
+  const url = `${API_BASE}/locations${params.toString() ? '?' + params.toString() : ''}`;
+  const response = await fetch(url);
+  const result = await response.json();
+  return result;
+}
 
 // Example: Get location by ID
 async function getLocation(id) {
@@ -594,6 +674,10 @@ async function batchGetLocations(ids) {
 // Usage
 (async () => {
   try {
+    // Get all locations
+    const allLocations = await getAllLocations();
+    console.log(`Found ${allLocations.count} locations`);
+
     // Get a location
     const location = await getLocation('lowenstein_ll817');
     console.log('Location:', location.data);
@@ -628,6 +712,19 @@ async function batchGetLocations(ids) {
 import requests
 
 API_BASE = "http://localhost:3001/api"
+
+# Example: Get all locations
+def get_all_locations(building=None, floor=None, limit=None):
+    params = {}
+    if building:
+        params['building'] = building
+    if floor:
+        params['floor'] = floor
+    if limit:
+        params['limit'] = limit
+    response = requests.get(f"{API_BASE}/locations", params=params)
+    response.raise_for_status()
+    return response.json()
 
 # Example: Get location by ID
 def get_location(location_id):
@@ -664,6 +761,10 @@ def batch_get_locations(location_ids):
 
 # Usage
 if __name__ == "__main__":
+    # Get all locations
+    all_locations = get_all_locations()
+    print(f"Found {all_locations['count']} locations")
+
     # Get location
     location = get_location("lowenstein_ll817")
     print("Location:", location["data"])
@@ -699,8 +800,18 @@ async function testAllEndpoints() {
     console.error('❌ Health check failed:', error);
   }
 
-  // Test 2: Get Location by ID
-  console.log('\n2️⃣ Testing Get Location by ID...');
+  // Test 2: Get All Locations
+  console.log('\n2️⃣ Testing Get All Locations...');
+  try {
+    const allLocations = await fetch(`${API_BASE}/locations`)
+      .then(r => r.json());
+    console.log(`✅ Retrieved ${allLocations.count} locations`);
+  } catch (error) {
+    console.error('❌ Get all locations failed:', error);
+  }
+
+  // Test 3: Get Location by ID
+  console.log('\n3️⃣ Testing Get Location by ID...');
   try {
     const location = await fetch(`${API_BASE}/locations/lowenstein_ll817`)
       .then(r => r.json());
@@ -709,8 +820,8 @@ async function testAllEndpoints() {
     console.error('❌ Get location failed:', error);
   }
 
-  // Test 3: Search Locations
-  console.log('\n3️⃣ Testing Search Locations...');
+  // Test 4: Search Locations
+  console.log('\n4️⃣ Testing Search Locations...');
   try {
     const search = await fetch(`${API_BASE}/locations/search?q=classroom`)
       .then(r => r.json());
@@ -719,8 +830,8 @@ async function testAllEndpoints() {
     console.error('❌ Search failed:', error);
   }
 
-  // Test 4: Navigation Path
-  console.log('\n4️⃣ Testing Navigation Path...');
+  // Test 5: Navigation Path
+  console.log('\n5️⃣ Testing Navigation Path...');
   try {
     const path = await fetch(
       `${API_BASE}/navigate?start=lowenstein_entrance&end=lowenstein_ll817`
@@ -731,8 +842,8 @@ async function testAllEndpoints() {
     console.error('❌ Navigation failed:', error);
   }
 
-  // Test 5: Batch Get Locations
-  console.log('\n5️⃣ Testing Batch Get Locations...');
+  // Test 6: Batch Get Locations
+  console.log('\n6️⃣ Testing Batch Get Locations...');
   try {
     const batch = await fetch(`${API_BASE}/locations/batch`, {
       method: 'POST',
@@ -877,5 +988,6 @@ For issues or questions:
 ---
 
 **Last Updated:** 2024-01-15
-**API Version:** 1.0.0
+**API Version:** 1.1.0
+**Total Endpoints:** 10 (6 Location, 2 Navigation, 2 Utility)
 

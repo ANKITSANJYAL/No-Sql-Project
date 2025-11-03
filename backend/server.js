@@ -32,7 +32,7 @@ let neo4j;
 /**
  * GET /api/locations/search?q=query
  * Search locations by name or description
- * NOTE: Must be defined BEFORE /api/locations/:id to avoid route conflict
+ * NOTE: Must be defined BEFORE /api/locations/:id and /api/locations to avoid route conflict
  */
 app.get('/api/locations/search', async (req, res) => {
   try {
@@ -86,6 +86,58 @@ app.get('/api/locations/search', async (req, res) => {
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to search locations'
+    });
+  }
+});
+
+/**
+ * GET /api/locations
+ * Get all locations (with optional pagination and filtering)
+ * NOTE: Must be defined AFTER /api/locations/search but BEFORE /api/locations/:id
+ */
+app.get('/api/locations', async (req, res) => {
+  try {
+    const { building, floor, limit } = req.query;
+
+    // Build query
+    const query = {};
+    if (building) {
+      query.building = building;
+    }
+    if (floor !== undefined) {
+      const floorNum = parseInt(floor, 10);
+      query.floor = isNaN(floorNum) ? floor : floorNum;
+    }
+
+    // Use projection for optimization
+    const locations = await db.collection('locations')
+      .find(query)
+      .project({
+        _id: 1,
+        name: 1,
+        description: 1,
+        building: 1,
+        floor: 1,
+        type: 1,
+        amenities: 1,
+        accessibility: 1,
+        images: { $slice: 1 }
+      })
+      .sort({ building: 1, floor: 1, name: 1 })
+      .limit(limit ? parseInt(limit, 10) : 1000) // Default limit 1000
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      count: locations.length,
+      data: locations
+    });
+
+  } catch (error) {
+    console.error('Error fetching locations:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to fetch locations'
     });
   }
 });

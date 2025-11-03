@@ -54,6 +54,8 @@ function App() {
                     <SearchBar 
                       onSearch={handleSearch}
                       onLocationSelect={setSelectedLocation}
+                      startValue={startLocation}
+                      endValue={endLocation}
                     />
                   </div>
                 </section>
@@ -70,6 +72,18 @@ function App() {
                   <LocationDetails 
                     location={selectedLocation}
                     onClose={() => setSelectedLocation(null)}
+                    onNavigate={(startName, endName) => {
+                      setStartLocation(startName);
+                      setEndLocation(endName);
+                      setSelectedLocation(null); // Close popup
+                      // Focus on destination input after popup closes
+                      setTimeout(() => {
+                        const endInputElement = document.querySelector('.end-icon')?.parentElement?.querySelector('.search-input');
+                        if (endInputElement) {
+                          endInputElement.focus();
+                        }
+                      }, 150);
+                    }}
                   />
                 )}
               </>
