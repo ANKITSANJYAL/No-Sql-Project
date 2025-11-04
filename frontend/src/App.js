@@ -5,6 +5,7 @@ import SearchBar from './components/SearchBar';
 import NavigationView from './components/NavigationView';
 import LocationDetails from './components/LocationDetails';
 import ChatAssistant from './components/ChatAssistant';
+import { API_ENDPOINTS } from './config/api';
 import './styles/App.css';
 
 function App() {
@@ -13,25 +14,37 @@ function App() {
   const [navigationData, setNavigationData] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [showChat, setShowChat] = useState(false);
+  const [isLoadingNavigation, setIsLoadingNavigation] = useState(false);
+  const [navigationError, setNavigationError] = useState(null);
 
-  const handleSearch = async (start, end) => {
-    setStartLocation(start);
-    setEndLocation(end);
+  const handleSearch = async (startId, endId, startName, endName) => {
+    setStartLocation(startName);
+    setEndLocation(endName);
+    setNavigationData(null);
+    setNavigationError(null);
+    setIsLoadingNavigation(true);
     
-    // TODO: Replace with actual API call to your backend
     try {
-      // const response = await fetch(`http://localhost:3001/api/navigate?start=${start}&end=${end}`);
-      // const data = await response.json();
-      // setNavigationData(data);
+      const response = await fetch(`${API_ENDPOINTS.navigate}?start=${encodeURIComponent(startId)}&end=${encodeURIComponent(endId)}`);
       
-      // Mock data for now
-      setNavigationData({
-        path: ['entrance', 'hallway_1', 'staircase_a', 'room_817'],
-        distance: '150m',
-        estimatedTime: '3 min'
-      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to fetch navigation: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // The API response spreads pathData directly, so all navigation data is at the top level
+        setNavigationData(data);
+      } else {
+        throw new Error(data.message || 'Invalid response from navigation API');
+      }
     } catch (error) {
       console.error('Error fetching navigation:', error);
+      setNavigationError(error.message || 'Failed to get navigation directions. Please try again.');
+    } finally {
+      setIsLoadingNavigation(false);
     }
   };
 
@@ -54,11 +67,25 @@ function App() {
                     <SearchBar 
                       onSearch={handleSearch}
                       onLocationSelect={setSelectedLocation}
+                      startValue={startLocation}
+                      endValue={endLocation}
                     />
                   </div>
                 </section>
 
-                {navigationData && (
+                {isLoadingNavigation && (
+                  <div className="navigation-loading">
+                    <p>Loading directions...</p>
+                  </div>
+                )}
+
+                {navigationError && (
+                  <div className="navigation-error">
+                    <p>⚠️ {navigationError}</p>
+                  </div>
+                )}
+
+                {navigationData && !isLoadingNavigation && (
                   <NavigationView 
                     navigationData={navigationData}
                     startLocation={startLocation}
@@ -70,6 +97,18 @@ function App() {
                   <LocationDetails 
                     location={selectedLocation}
                     onClose={() => setSelectedLocation(null)}
+                    onNavigate={(startName, endName) => {
+                      setStartLocation(startName);
+                      setEndLocation(endName);
+                      setSelectedLocation(null); // Close popup
+                      // Focus on destination input after popup closes
+                      setTimeout(() => {
+                        const endInputElement = document.querySelector('.end-icon')?.parentElement?.querySelector('.search-input');
+                        if (endInputElement) {
+                          endInputElement.focus();
+                        }
+                      }, 150);
+                    }}
                   />
                 )}
               </>

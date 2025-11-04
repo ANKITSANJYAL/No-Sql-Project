@@ -10,6 +10,7 @@ export const API_ENDPOINTS = {
   
   // Location endpoints
   locations: `${API_BASE_URL}/locations`,
+  allLocations: `${API_BASE_URL}/locations`, // Get all locations
   locationById: (id) => `${API_BASE_URL}/locations/${id}`,
   searchLocations: `${API_BASE_URL}/locations/search`,
   

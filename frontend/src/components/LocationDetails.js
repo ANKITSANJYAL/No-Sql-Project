@@ -1,7 +1,7 @@
 import React from 'react';
 import '../styles/LocationDetails.css';
 
-function LocationDetails({ location, onClose }) {
+function LocationDetails({ location, onClose, onNavigate }) {
   // Mock location data - replace with actual API call
   const locationInfo = {
     name: location.name || "Quinn Library",
@@ -78,7 +78,22 @@ function LocationDetails({ location, onClose }) {
             <p>{locationInfo.hours}</p>
           </div>
 
-          <button className="navigate-button">
+          <button 
+            className="navigate-button"
+            onClick={() => {
+              // Close the popup
+              if (onClose) {
+                onClose();
+              }
+              // If navigate callback provided, set this as start location
+              if (onNavigate && location) {
+                // Small delay to ensure popup closes first
+                setTimeout(() => {
+                  onNavigate(location.name, '');
+                }, 100);
+              }
+            }}
+          >
             Navigate Here
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M5 12h14M12 5l7 7-7 7" />

@@ -63,6 +63,33 @@
   transform: scale(0.95);
 }
 
+/* Navigation Loading & Error States */
+.navigation-loading,
+.navigation-error {
+  max-width: 1200px;
+  margin: 40px auto;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.navigation-loading {
+  color: var(--text-primary);
+  font-size: 1.1rem;
+}
+
+.navigation-error {
+  background: #fee;
+  border: 2px solid #fcc;
+  border-radius: var(--radius-md);
+  color: #c33;
+  padding: 20px;
+  font-size: 1rem;
+}
+
+.navigation-error p {
+  margin: 0;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .hero-title {

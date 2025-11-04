@@ -56,6 +56,13 @@
   margin-bottom: 24px;
 }
 
+.step-image {
+  width: 100%;
+  height: 300px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+}
+
 .step-image-placeholder {
   width: 100%;
   height: 300px;
@@ -94,6 +101,27 @@
 
 .step-distance {
   font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.step-location-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.location-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.location-building {
+  font-size: 0.9rem;
   color: var(--text-secondary);
 }
 
