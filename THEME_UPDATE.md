@@ -196,3 +196,6 @@ If you want to adjust colors further:
 **To complete the branding:**
 Add `fordham-logo.png` to the `frontend/public/` folder and you're done!
 
+
+
+

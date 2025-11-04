@@ -92,3 +92,6 @@ function LocationDetails({ location, onClose }) {
 
 export default LocationDetails;
 
+
+
+

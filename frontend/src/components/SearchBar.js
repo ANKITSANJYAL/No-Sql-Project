@@ -141,3 +141,6 @@ function SearchBar({ onSearch, onLocationSelect }) {
 
 export default SearchBar;
 
+
+
+

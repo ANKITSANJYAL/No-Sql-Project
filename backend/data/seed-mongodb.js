@@ -1,5 +1,8 @@
 const { connectDatabases, closeDatabases, getMongoDb } = require('../config/database');
 
+// GCP Storage base URL - Your actual bucket with uploaded images
+const GCP_STORAGE_BASE = "https://storage.googleapis.com/rams-navigator-images";
+
 const dummyLocations = [
   {
     _id: "lowenstein_entrance",
@@ -10,7 +13,7 @@ const dummyLocations = [
     type: "entrance",
     images: [
       {
-        url: "/images/lowenstein_entrance.jpg",
+        url: `${GCP_STORAGE_BASE}/locations/image1.jpg`,
         alt_text: "Main entrance doors",
         orientation: "north",
         is_primary: true
@@ -32,7 +35,7 @@ const dummyLocations = [
     type: "lobby",
     images: [
       {
-        url: "/images/lowenstein_lobby_north.jpg",
+        url: `${GCP_STORAGE_BASE}/locations/image2.jpg`,
         alt_text: "View from entrance facing security desk",
         orientation: "north",
         is_primary: true
@@ -54,7 +57,7 @@ const dummyLocations = [
     type: "elevator",
     images: [
       {
-        url: "/images/elevator_bank_a.jpg",
+        url: `${GCP_STORAGE_BASE}/locations/image3.jpg`,
         alt_text: "Four elevator doors",
         orientation: "east",
         is_primary: true
@@ -75,7 +78,7 @@ const dummyLocations = [
     type: "lobby",
     images: [
       {
-        url: "/images/floor8_lobby.jpg",
+        url: `${GCP_STORAGE_BASE}/locations/image4.jpg`,
         alt_text: "8th floor corridor",
         orientation: "north",
         is_primary: true
@@ -95,7 +98,7 @@ const dummyLocations = [
     type: "classroom",
     images: [
       {
-        url: "/images/ll817_entrance.jpg",
+        url: `${GCP_STORAGE_BASE}/locations/image1.jpg`, // Reusing image1 since you have 4 images for 5 locations
         alt_text: "Classroom entrance door",
         orientation: "west",
         is_primary: true

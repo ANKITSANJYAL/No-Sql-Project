@@ -423,3 +423,6 @@ The frontend is already built to handle this - you just need to provide the imag
 
 Good luck with your project! 🎓🗺️
 
+
+
+
