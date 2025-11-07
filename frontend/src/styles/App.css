@@ -1,0 +1,114 @@
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content {
+  flex: 1;
+  padding-top: 70px;
+}
+
+.hero-section {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  color: white;
+  padding: 80px 20px;
+  text-align: center;
+}
+
+.hero-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.hero-title {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  line-height: 1.2;
+}
+
+.hero-subtitle {
+  font-size: 1.25rem;
+  opacity: 0.9;
+  margin-bottom: 40px;
+  font-weight: 400;
+}
+
+/* Floating Chat Button */
+.chat-toggle-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-lg);
+  transition: var(--transition);
+  z-index: 999;
+}
+
+.chat-toggle-btn:hover {
+  background: var(--primary-dark);
+  transform: scale(1.05);
+  box-shadow: 0 12px 30px rgba(139, 35, 50, 0.3);
+}
+
+.chat-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+/* Navigation Loading & Error States */
+.navigation-loading,
+.navigation-error {
+  max-width: 1200px;
+  margin: 40px auto;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.navigation-loading {
+  color: var(--text-primary);
+  font-size: 1.1rem;
+}
+
+.navigation-error {
+  background: #fee;
+  border: 2px solid #fcc;
+  border-radius: var(--radius-md);
+  color: #c33;
+  padding: 20px;
+  font-size: 1rem;
+}
+
+.navigation-error p {
+  margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 2rem;
+  }
+  
+  .hero-subtitle {
+    font-size: 1rem;
+  }
+  
+  .hero-section {
+    padding: 60px 20px;
+  }
+  
+  .chat-toggle-btn {
+    width: 50px;
+    height: 50px;
+    bottom: 20px;
+    right: 20px;
+  }
+}
+

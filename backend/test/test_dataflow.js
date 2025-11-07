@@ -11,7 +11,7 @@ async function testDataFlow() {
     
     // 1. Query MongoDB for location details
     const location = await db.collection('locations').findOne({ _id: 'lowenstein_ll817' });
-    console.log('📄 MongoDB Data:');
+    console.log('MongoDB Data:');
     console.log(`   Name: ${location.name}`);
     console.log(`   Description: ${location.description}`);
     console.log(`   Amenities: ${location.amenities.join(', ')}`);
@@ -28,9 +28,9 @@ async function testDataFlow() {
     const locationIds = pathResult.records[0].get('locationIds');
     const instructions = pathResult.records[0].get('instructions');
     
-    console.log('\n🗺️  Neo4j Path:');
+    console.log('\nNeo4j Path:');
     console.log(`   Route: ${locationIds.join(' → ')}`);
-    console.log('\n📍 Turn-by-turn Directions:');
+    console.log('\nTurn-by-turn Directions:');
     
     // 3. Combine data: Neo4j path + MongoDB details
     for (let i = 0; i < locationIds.length; i++) {
@@ -43,7 +43,7 @@ async function testDataFlow() {
       }
     }
     
-    console.log('\n✅ Data flow test successful! MongoDB and Neo4j are working together.');
+    console.log('\nData flow test successful! MongoDB and Neo4j are working together.');
     
   } catch (error) {
     console.error('Error testing data flow:', error);

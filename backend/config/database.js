@@ -17,17 +17,17 @@ async function connectDatabases() {
     // Test Neo4j connection
     const neo4jSession = neo4jDriver.session();
     await neo4jSession.run('RETURN 1');
-    console.log('✅ Neo4j connected successfully');
+    console.log('Neo4j connected successfully');
     await neo4jSession.close();
 
     // Connect to MongoDB
     await mongoClient.connect();
     mongoDB = mongoClient.db(process.env.MONGODB_DATABASE);
-    console.log('✅ MongoDB connected successfully');
+    console.log('MongoDB connected successfully');
     
     return { neo4jDriver, mongoDB };
   } catch (error) {
-    console.error('❌ Database connection error:', error);
+    console.error('Database connection error:', error);
     throw error;
   }
 }

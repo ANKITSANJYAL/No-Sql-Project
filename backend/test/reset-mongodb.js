@@ -8,7 +8,7 @@ async function resetDatabase() {
     await client.connect();
     const db = client.db(process.env.MONGODB_DATABASE);
     
-    console.log('🗑️  Dropping all collections...\n');
+    console.log('Dropping all collections...\n');
     
     // Get all collections
     const collections = await db.listCollections().toArray();
@@ -18,8 +18,8 @@ async function resetDatabase() {
       await db.collection(collection.name).drop();
     }
     
-    console.log('\n✅ All collections dropped successfully!');
-    console.log('\n📝 Now run: node data/seed-mongodb.js');
+    console.log('\nAll collections dropped successfully!');
+    console.log('\nNow run: node data/seed-mongodb.js');
     
   } catch (error) {
     console.error('Error:', error);
