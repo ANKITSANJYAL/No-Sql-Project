@@ -35,7 +35,7 @@ const dummyLocations = [
     type: "lobby",
     images: [
       {
-        url: "",
+        url: `${GCP_STORAGE_BASE}/locations/image2.jpg`,
         alt_text: "View from entrance facing security desk",
         orientation: "north",
         is_primary: true

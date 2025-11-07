@@ -26,7 +26,7 @@ function LocationDetails({ location, onClose, onNavigate }) {
         <div className="location-image-container">
           {locationInfo.images && locationInfo.images.length > 0 ? (
             <img 
-              src={locationInfo.images[0]} 
+              src={locationInfo.images[0].url || locationInfo.images[0]} 
               alt={locationInfo.name}
               className="location-image"
             />

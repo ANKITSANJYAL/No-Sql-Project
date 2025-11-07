@@ -63,7 +63,7 @@ function NavigationView({ navigationData, startLocation, endLocation }) {
             <div className="step-image-container">
               {currentStepData.location?.images && currentStepData.location.images.length > 0 ? (
                 <img 
-                  src={currentStepData.location.images[0]} 
+                  src={currentStepData.location.images[0].url || currentStepData.location.images[0]} 
                   alt={currentStepData.location.name}
                   className="step-image"
                 />
