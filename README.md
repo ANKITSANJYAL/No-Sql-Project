@@ -1,8 +1,8 @@
-# 🗺️ RamsNavigator - Campus Indoor Navigation System
+# RamsNavigator - Campus Indoor Navigation System
 
 A full-stack indoor navigation application for Fordham University, built with React, Node.js/Express, MongoDB, and Neo4j.
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Features](#features)
@@ -17,7 +17,7 @@ A full-stack indoor navigation application for Fordham University, built with Re
 - [Development](#development)
 - [Troubleshooting](#troubleshooting)
 
-## 🎯 Overview
+## Overview
 
 RamsNavigator provides turn-by-turn indoor navigation guidance for navigating Fordham University's campus buildings. The system uses:
 - **Neo4j** for pathfinding and navigation graph
@@ -25,16 +25,16 @@ RamsNavigator provides turn-by-turn indoor navigation guidance for navigating Fo
 - **React** for the frontend interface
 - **Node.js/Express** for the backend API
 
-## ✨ Features
+## Features
 
-- 🔍 **Location Search**: Search locations by name, building, or description
-- 🧭 **Turn-by-Turn Navigation**: Get detailed step-by-step directions between locations
-- 📍 **Location Details**: View comprehensive information about each location
-- 🗺️ **Building & Floor Filtering**: Filter locations by building and floor
-- 🎨 **Modern UI**: Responsive, user-friendly interface
-- 🔄 **Real-time API Integration**: Dynamic data fetching from MongoDB and Neo4j
+- **Location Search**: Search locations by name, building, or description
+- **Turn-by-Turn Navigation**: Get detailed step-by-step directions between locations
+- **Location Details**: View comprehensive information about each location
+- **Building & Floor Filtering**: Filter locations by building and floor
+- **Modern UI**: Responsive, user-friendly interface
+- **Real-time API Integration**: Dynamic data fetching from MongoDB and Neo4j
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Frontend
 - React 18.2.0
@@ -47,7 +47,7 @@ RamsNavigator provides turn-by-turn indoor navigation guidance for navigating Fo
 - MongoDB (via mongodb driver)
 - Neo4j (via neo4j-driver)
 
-## 📦 Prerequisites
+## Prerequisites
 
 Before you begin, ensure you have the following installed:
 
@@ -78,7 +78,7 @@ Before you begin, ensure you have the following installed:
 3. Start the database (default port: 7687)
 4. Note your database credentials (default: neo4j/neo4j, change password on first login)
 
-## 🚀 Installation
+## Installation
 
 1. **Clone the repository**
    ```bash
@@ -98,7 +98,7 @@ Before you begin, ensure you have the following installed:
    npm install
    ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Backend Environment Variables
 
@@ -142,7 +142,7 @@ The frontend will connect to the backend API at `http://localhost:3001/api` by d
    REACT_APP_API_URL=http://localhost:3001/api
    ```
 
-## 🗄️ Database Setup
+## Database Setup
 
 ### Step 1: Seed MongoDB
 
@@ -155,10 +155,10 @@ node data/seed-mongodb.js
 
 Expected output:
 ```
-✅ MongoDB connected successfully
-✅ Seeding MongoDB with dummy location data...
-✅ Successfully inserted locations
-✅ MongoDB seeding completed!
+MongoDB connected successfully
+Seeding MongoDB with dummy location data...
+Successfully inserted locations
+MongoDB seeding completed!
 ```
 
 ### Step 2: Seed Neo4j
@@ -172,18 +172,18 @@ node data/seed-neo4j.js
 
 Expected output:
 ```
-✅ Neo4j connected successfully
-✅ MongoDB connected successfully
+Neo4j connected successfully
+MongoDB connected successfully
 Seeding Neo4j with navigation graph...
 Cleared existing graph data
 Creating location nodes...
 Created 5 location nodes
 Creating connections...
 Created 4 connections
-✅ Neo4j seeding completed!
+Neo4j seeding completed!
 ```
 
-## ▶️ Running the Application
+## Running the Application
 
 ### Start the Backend Server
 
@@ -201,9 +201,9 @@ Created 4 connections
 
    Expected output:
    ```
-   ✅ Neo4j connected successfully
-   ✅ MongoDB connected successfully
-   ✅ Server ready with database connections (MongoDB & Neo4j)
+   Neo4j connected successfully
+   MongoDB connected successfully
+   Server ready with database connections (MongoDB & Neo4j)
    Server running on port 3001
    ```
 
@@ -225,7 +225,7 @@ Created 4 connections
 
    **Note**: The React development server runs on port 3000, while the backend API runs on port 3001.
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 No-Sql-Project/
@@ -262,7 +262,7 @@ No-Sql-Project/
 └── .gitignore
 ```
 
-## 📚 API Documentation
+## API Documentation
 
 Complete API documentation is available in `backend/API_DOCUMENTATION.md`.
 
@@ -288,7 +288,7 @@ Complete API documentation is available in `backend/API_DOCUMENTATION.md`.
 
 See `backend/API_DOCUMENTATION.md` for detailed documentation, examples, and testing instructions.
 
-## 🔧 Development
+## Development
 
 ### Testing the API
 
@@ -368,24 +368,12 @@ node data/seed-neo4j.js
 **Problem**: No data after seeding
 - **Solution**: Run seed scripts again and check for error messages
 
-## 📝 Additional Resources
+## Additional Resources
 
-- **Frontend Setup Guide**: See `FRONTEND_SETUP_GUIDE.md` for detailed frontend setup instructions
-- **API Documentation**: See `backend/API_DOCUMENTATION.md` for complete API reference
+- **API Documentation**: See `API_DOCUMENTATION.md` for complete API reference
 - **Project Proposal**: [Google Docs](https://docs.google.com/document/d/1rVzWPu0YoM1GG3z4FTF8Tp8RPfdU8UGZ452_0NnM5iw/edit?tab=r.r73yq0ag3nty)
 - **To-Do List**: [Google Sheets](https://docs.google.com/spreadsheets/d/1hKXdWQx23C13Wb2uFooPJ27rYtiHhiEOPQDQ5EwyijE/edit?gid=0#gid=0)
 
-## 👥 Contributing
-
-1. Create a feature branch
-2. Make your changes
-3. Test thoroughly
-4. Submit a pull request
-
-## 📄 License
-
-ISC
-
 ---
 
-**Happy Navigating! 🚀**
+**Happy Navigating!**

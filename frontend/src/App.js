@@ -81,7 +81,7 @@ function App() {
 
                 {navigationError && (
                   <div className="navigation-error">
-                    <p>⚠️ {navigationError}</p>
+                    <p>Warning: {navigationError}</p>
                   </div>
                 )}
 

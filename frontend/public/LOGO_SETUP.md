@@ -1,4 +1,4 @@
-# 🎓 Fordham Logo Setup Instructions
+# Fordham Logo Setup Instructions
 
 ## Quick Setup
 
@@ -61,8 +61,8 @@ The app will automatically display it in the header!
 Based on Fordham's typical branding:
 
 ### Colors:
-- **Primary Maroon**: #8B2332 ✅ (Already applied)
-- **White**: #FFFFFF ✅ (Already applied)
+- **Primary Maroon**: #8B2332 (Already applied)
+- **White**: #FFFFFF (Already applied)
 
 ### Usage:
 - Always maintain proper clear space around the logo
@@ -115,10 +115,10 @@ If you have multiple versions:
 ## Troubleshooting
 
 **Logo not showing?**
-- ✅ Check file is named exactly: `fordham-logo.png`
-- ✅ Check file is in `frontend/public/` directory
-- ✅ Clear browser cache and refresh (Cmd+Shift+R / Ctrl+Shift+R)
-- ✅ Check browser console for errors
+- Check file is named exactly: `fordham-logo.png`
+- Check file is in `frontend/public/` directory
+- Clear browser cache and refresh (Cmd+Shift+R / Ctrl+Shift+R)
+- Check browser console for errors
 
 **Logo too big/small?**
 - Edit `frontend/src/styles/Header.css`
@@ -147,11 +147,11 @@ For official Fordham branding materials:
 
 ## Current Status
 
-✅ **Colors**: Fordham maroon (#8B2332) and white applied throughout
-✅ **Logo placeholder**: Ready in header with fallback icon
-⏳ **Logo file**: Waiting for you to add `fordham-logo.png`
+**Colors**: Fordham maroon (#8B2332) and white applied throughout
+**Logo placeholder**: Ready in header with fallback icon
+**Logo file**: Waiting for you to add `fordham-logo.png`
 
-Once you add the logo file, refresh the page and it will appear automatically! 🎓
+Once you add the logo file, refresh the page and it will appear automatically!
 
 
 
