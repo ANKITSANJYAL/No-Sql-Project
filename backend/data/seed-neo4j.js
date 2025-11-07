@@ -26,7 +26,7 @@ async function seedNeo4j() {
         loc
       );
     }
-    console.log(`✅ Created ${locations.length} location nodes`);
+    console.log(`Created ${locations.length} location nodes`);
     
     // Create Relationships (connections between locations)
     const connections = [
@@ -79,7 +79,7 @@ async function seedNeo4j() {
         conn
       );
     }
-    console.log(`✅ Created ${connections.length * 2} relationships (bidirectional)`);
+    console.log(`Created ${connections.length * 2} relationships (bidirectional)`);
     
     // Verify the graph
     const result = await session.run('MATCH (n) RETURN count(n) as nodeCount');

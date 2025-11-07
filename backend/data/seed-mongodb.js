@@ -122,7 +122,7 @@ async function seedMongoDB() {
     
     // Insert dummy data
     const result = await db.collection('locations').insertMany(dummyLocations);
-    console.log(`✅ Inserted ${result.insertedCount} locations into MongoDB`);
+    console.log(`Inserted ${result.insertedCount} locations into MongoDB`);
     
     // Verify data
     const count = await db.collection('locations').countDocuments();

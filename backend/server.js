@@ -18,9 +18,9 @@ let neo4j;
     await connectDatabases();
     db = getMongoDb();
     neo4j = neo4jDriver;
-    console.log('✅ Server ready with database connections (MongoDB & Neo4j)');
+    console.log('Server ready with database connections (MongoDB & Neo4j)');
   } catch (error) {
-    console.error('❌ Failed to connect to databases:', error);
+    console.error('Failed to connect to databases:', error);
     process.exit(1);
   }
 })();
@@ -666,8 +666,8 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 RamsNavigator API server running on http://localhost:${PORT}`);
-  console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
+  console.log(`RamsNavigator API server running on http://localhost:${PORT}`);
+  console.log(`API endpoints available at http://localhost:${PORT}/api`);
 });
 
 module.exports = app;

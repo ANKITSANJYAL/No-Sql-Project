@@ -4,7 +4,7 @@ async function testConnections() {
   try {
     console.log('Testing database connections...\n');
     await connectDatabases();
-    console.log('\n🎉 All connections successful!');
+    console.log('\nAll connections successful!');
   } catch (error) {
     console.error('Connection test failed:', error.message);
   } finally {
