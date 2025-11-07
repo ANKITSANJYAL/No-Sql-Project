@@ -2,16 +2,16 @@ import React from 'react';
 import '../styles/LocationDetails.css';
 
 function LocationDetails({ location, onClose, onNavigate }) {
-  // Mock location data - replace with actual API call
+  // Use actual location data from props
   const locationInfo = {
-    name: location.name || "Quinn Library",
-    type: "Library",
-    floor: "Ground Floor",
-    building: "Quinn Building",
-    description: "Main university library with study spaces, computer labs, and extensive book collections.",
-    amenities: ["WiFi", "Printing", "Study Rooms", "Computers", "Accessible"],
-    hours: "Mon-Fri: 8am-10pm, Sat-Sun: 10am-8pm",
-    image: "/images/locations/quinn-library.jpg"
+    name: location.name || "Location",
+    type: location.type || "Unknown",
+    floor: location.floor || "N/A",
+    building: location.building || "N/A",
+    description: location.description || "No description available.",
+    amenities: location.amenities || [],
+    hours: location.hours || "Hours not available",
+    images: location.images || []
   };
 
   return (
@@ -24,13 +24,21 @@ function LocationDetails({ location, onClose, onNavigate }) {
         </button>
 
         <div className="location-image-container">
-          <div className="location-image-placeholder">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
-              <path d="M21 15l-5-5L5 21" />
-            </svg>
-          </div>
+          {locationInfo.images && locationInfo.images.length > 0 ? (
+            <img 
+              src={locationInfo.images[0]} 
+              alt={locationInfo.name}
+              className="location-image"
+            />
+          ) : (
+            <div className="location-image-placeholder">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
+                <path d="M21 15l-5-5L5 21" />
+              </svg>
+            </div>
+          )}
         </div>
 
         <div className="location-content">
@@ -59,19 +67,21 @@ function LocationDetails({ location, onClose, onNavigate }) {
             <p>{locationInfo.description}</p>
           </div>
 
-          <div className="location-amenities">
-            <h3>Amenities</h3>
-            <div className="amenities-grid">
-              {locationInfo.amenities.map((amenity, index) => (
-                <div key={index} className="amenity-tag">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  {amenity}
-                </div>
-              ))}
+          {locationInfo.amenities && locationInfo.amenities.length > 0 && (
+            <div className="location-amenities">
+              <h3>Amenities</h3>
+              <div className="amenities-grid">
+                {locationInfo.amenities.map((amenity, index) => (
+                  <div key={index} className="amenity-tag">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                    {amenity}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="location-hours">
             <h3>Hours</h3>
