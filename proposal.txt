@@ -1,0 +1,141 @@
+RamsNavigator: Indoor Campus Navigation System
+Ankit Sanjyal, Prarthana Shiwakoti, Swoichha Adhikari
+
+Problem Statement
+
+Navigating large university campuses like Fordham often feels confusing and time-consuming for students, faculty, and visitors. Buildings such as Lowenstein and Gabelli have multi-floor layouts with non-intuitive room numbering, identical hallways, and limited signage, making it difficult to locate classrooms, offices, or facilities quickly. New students and visitors frequently get lost, leading to delays and frustration, while individuals with mobility limitations face even greater challenges in finding accessible routes that avoid stairs or long corridors.
+
+These issues highlight the need for an intelligent, campus-specific indoor navigation solution that goes beyond static maps. A system capable of understanding user intent, providing personalized directions, and offering visual cues of real landmarks could make campus navigation faster, easier, and more inclusive for everyone in the university community.
+
+Proposed Solution
+
+RamsNavigator is an intelligent, web-based indoor navigation system designed to make campus movement simple, intuitive, and visually guided. The system combines natural language understanding with graph-based route planning and visual landmark assistance to help users reach their destinations efficiently. By integrating spatial relationships and real-world imagery, it provides a more human-like navigation experience compared to traditional digital maps.
+
+The application allows users to interact conversationally, entering requests such as “Take me to Quinn Library but first I need coffee.” A lightweight LLM-powered Retrieval-Augmented Generation (RAG) module interprets the user’s intent and converts it into structured graph traversal queries over a Neo4j knowledge base representing the campus layout. At each decision point, the system retrieves relevant images and descriptions from MongoDB, displaying both visual cues and step-by-step instructions. Together, these components create an accessible and context-aware navigation assistant that adapts to diverse user needs across the university environment.
+
+
+Technology Stack
+RamsNavigator integrates multiple technologies to enable intelligent, real-time indoor navigation with visual and conversational features. The system’s architecture is built around two complementary NoSQL databases Neo4j and MongoDB supported by an AI reasoning layer and a lightweight web application framework.
+
+Primary Database Technologies
+Graph Database – Neo4j:
+ Neo4j is used to model the spatial relationships between various campus locations. Its native shortest path algorithms (such as Dijkstra and A*) make it ideal for navigation and route optimization tasks. Because campus navigation is inherently relationship-driven, Neo4j’s graph model efficiently represents paths, junctions, and connectivity. The database is optimized for high-performance traversals and allows flexible modifications to the campus structure without complex schema changes.
+Document Database – MongoDB:
+ MongoDB stores rich, descriptive data about each location, including images, textual descriptions, amenities, and accessibility details. Its schema flexibility supports diverse data types across different location categories, from classrooms to cafés. The JSON-like document structure integrates seamlessly with the web stack and allows scalable handling of large numbers of visual and metadata records.
+AI and Integration Layer
+LLM: OpenAI API (or a local model) is employed for natural language understanding, enabling the system to extract user intent and translate free-form queries into structured navigation instructions.
+Middleware: A FastAPI or Node.js middleware orchestrates communication between the LLM, Neo4j, and MongoDB, managing query translation and data retrieval.
+Visualization Library: Cytoscape.js or D3.js powers the interactive graph visualization, highlighting active nodes and routes in real time.
+Supporting Technologies
+Backend: Node.js with Express.js for API routing and data handling
+Frontend: HTML5, CSS3, and JavaScript for a responsive web interface that integrates chat input, map visualization, and visual landmark displays
+
+
+Database & System Design
+The design of RamsNavigator centers around two interconnected NoSQL databases Neo4j and MongoDB which together represent the spatial, visual, and descriptive aspects of the Fordham campus environment. The system architecture integrates these databases through a middleware layer that connects them to the AI-based intent parser and the web interface.
+
+Neo4j Graph Design
+Neo4j models the physical structure of the campus as a network of nodes and relationships. Each node represents a distinct location such as a hallway, junction, room, or facility, while edges (relationships) define navigable connections between them. Relationship properties such as distance, direction, and accessibility are stored to support pathfinding and routing preferences. This model allows efficient execution of shortest-path algorithms and flexible query handling for multi-stop navigation.
+Nodes:
+
+(:Location {
+  id: String (Primary Key),
+  name: String,
+  type: String, // 'building', 'floor', 'room', 'stairs', 'elevator', 'outdoor'
+  building: String,
+  floor: Integer,
+  coordinates: Point (optional)
+})
+Relationships:
+(:Location)-[:CONNECTED_TO {
+  weight: Integer, // Cost for pathfinding (1=default, 5=stairs, 10=restricted)
+  instructions: String, // "Take the staircase on your left"
+  direction: String, // 'bidirectional', 'entrance_only', 'exit_only'
+  distance: Float // Estimated traversal time in seconds
+}]->(:Location)
+Example Graph Structure:
+(Lowenstein_Entrance)-[:CONNECTED_TO {weight: 1}]->(Main_Lobby)
+(Main_Lobby)-[:CONNECTED_TO {weight: 1, instructions: "Take elevator to 8th floor"}]->(Elevator_Bank_A)
+(Elevator_Bank_A)-[:CONNECTED_TO {weight: 1}]->(Floor_8_Lobby)
+(Floor_8_Lobby)-[:CONNECTED_TO {weight: 1}]->(Classroom_LL_817)
+
+
+MongoDB Document Design
+MongoDB complements Neo4j by storing flexible, descriptive data associated with each location node. Each document corresponds to a location in Neo4j, linked by a shared identifier. The collection stores images, textual cues, and metadata such as amenities, accessibility options, and last-updated information. This structure allows the system to retrieve both spatial and visual context for any path generated by the graph database.
+
+Sample Document Schema:
+
+Locations Collection:
+	
+{
+  "_id": "lowenstein_lobby_1", // Foreign key to Neo4j node ID
+  "name": "Lowenstein Center Main Lobby",
+  "description": "Main entrance hall with security desk and information center",
+  "building": "Lowenstein Center",
+  "floor": 1,
+  "type": "lobby",
+  "images": [
+    {
+      "url": "/images/lowenstein_lobby_north.jpg",
+      "alt_text": "View from entrance facing security desk",
+      "orientation": "north",
+      "is_primary": true
+    },
+    {
+      "url": "/images/lowenstein_lobby_east.jpg", 
+      "alt_text": "View facing elevator banks",
+      "orientation": "east",
+      "is_primary": false
+    }
+  ],
+  "amenities": ["security_desk", "information", "seating", "vending_machines"],
+  "accessibility": {
+    "wheelchair_accessible": true,
+    "automatic_doors": true,
+    "elevator_nearby": true
+  },
+  "metadata": {
+    "last_updated": ISODate("2024-01-15"),
+    "data_source": "manual_entry"
+  }
+}
+
+
+System Workflow
+
+User Query: The user provides a natural-language request through the chat interface (e.g., “Take me to Quinn Library but first I want a coffee”).
+Intent Extraction: The LLM parses the query and identifies the start point, destination, and any intermediate stops or constraints.
+Graph Query Execution: Neo4j computes the optimal route based on these inputs, returning the ordered list of nodes and edges that define the path.
+Data Enrichment: MongoDB supplements each node with its corresponding images and descriptive metadata.
+Visualization & Output: The frontend displays an interactive path graph, visual landmarks, and generated step-by-step textual instructions.
+
+This hybrid design leverages the graph-oriented power of Neo4j for spatial reasoning and the schema flexibility of MongoDB for multimedia storage, resulting in a scalable and visually rich indoor navigation experience.
+
+
+Fig: System Architecture
+
+
+Evaluation & Analysis
+The evaluation of RamsNavigator focuses on verifying the accuracy, performance, and usability of the proposed system. Since the project integrates graph traversal, document retrieval, and natural-language reasoning, the analysis emphasizes how well these components work together to produce reliable, efficient, and intuitive navigation experiences.
+
+Functional Evaluation
+The system will first be tested for path accuracy between major campus locations such as the Main Entrance, Quinn Library, and Ram Café. For each query, the computed route from Neo4j will be compared against the actual physical layout to confirm that the selected path is logically and spatially correct. Additional test cases will include multi-stop routes (e.g., “via café”) to evaluate how effectively the LLM interprets user intent and translates it into appropriate traversal queries.
+
+Performance Analysis
+System performance will be measured through query response times and scalability tests. Neo4j’s shortest-path algorithms will be benchmarked against equivalent SQL-style JOIN operations to highlight the efficiency advantages of a graph database for highly connected spatial data. MongoDB retrieval times for associated images and descriptions will also be evaluated under different query loads. Together, these metrics will demonstrate how the NoSQL architecture supports fast, flexible data access compared to traditional relational models.
+
+User Experience Assessment
+A small group of students and faculty will interact with the prototype to assess clarity and usability. Participants will provide feedback on the comprehensibility of visual cues, the helpfulness of step-by-step instructions, and the naturalness of the conversational interface. Observations will help identify any ambiguities in landmark descriptions or layout visualization and guide refinements to the user interface.
+
+Trade-offs and Challenges
+While the combined Neo4j–MongoDB model offers high flexibility and performance, it introduces synchronization complexity between datasets. Another challenge lies in handling ambiguous or incomplete user inputs, where the LLM may require additional context to generate accurate routes. These challenges will be documented along with potential mitigation strategies such as caching frequent queries and refining intent-extraction prompts.
+
+Overall, the evaluation aims to validate that RamsNavigator not only functions correctly and efficiently but also provides a user-friendly and context-aware navigation experience that demonstrates the practical strengths of NoSQL technologies in real-world spatial applications.
+
+Why NoSQL
+
+RamsNavigator is inherently a relationship-driven and data-diverse system, making it an ideal candidate for a NoSQL-based architecture. Campus navigation requires modeling complex spatial relationships how rooms, corridors, and facilities connect across multiple floors, something that becomes cumbersome and inefficient in relational databases due to heavy reliance on joins and rigid schema definitions. By using Neo4j, the system leverages a native graph structure where nodes and relationships directly mirror real-world physical connections, enabling fast pathfinding and intuitive query logic for dynamic routes.
+
+Complementing this, MongoDB provides the flexibility to store heterogeneous data such as images, textual descriptions, and accessibility metadata for each location. Its document-based model allows each entry to evolve independently without schema migration, supporting the addition of new buildings or landmarks with minimal overhead. Together, these two NoSQL systems create a scalable, modular, and semantically rich data backbone that supports AI-driven reasoning and real-time visualization capabilities that would be far more constrained in a traditional relational setup.
+
+This hybrid approach demonstrates the strengths of NoSQL databases in handling unstructured and highly connected data, making RamsNavigator a practical and forward-looking application of modern data management principles.

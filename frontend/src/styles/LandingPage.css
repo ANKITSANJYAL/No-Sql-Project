@@ -1,0 +1,7 @@
+/* Minimal landing styles */
+.landing-container { display:flex; justify-content:center; align-items:center; padding:40px; }
+.landing-hero { max-width:800px; text-align:center; }
+.landing-actions { margin-top:20px; display:flex; gap:16px; justify-content:center; }
+.landing-btn { padding:12px 24px; border-radius:8px; border: none; font-weight:600; cursor:pointer; }
+.landing-btn.manual { background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%); color:#fff; }
+.landing-btn.chat { background: var(--primary-light); color:#fff; }

@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { connectDatabases, getMongoDb, neo4jDriver } = require('./config/database');
+const { parseNavigationIntent } = require('./services/llmService');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -610,6 +611,161 @@ app.post('/api/navigate', async (req, res) => {
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to find navigation path'
+    });
+  }
+});
+
+// ============================================================================
+// AI CHAT / LLM ENDPOINTS
+// ============================================================================
+
+/**
+ * POST /api/chat/parse-intent
+ * Parse natural language navigation query using LLM
+ * Request body: { query: "I am at the main gate, I want to borrow some books" }
+ */
+app.post('/api/chat/parse-intent', async (req, res) => {
+  try {
+    const { query } = req.body;
+
+    // Validate input
+    if (!query || typeof query !== 'string' || query.trim() === '') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Query is required in request body: { "query": "your navigation request" }'
+      });
+    }
+
+    // Fetch all locations to provide context to LLM
+    const locations = await db.collection('locations')
+      .find({})
+      .project({
+        _id: 1,
+        name: 1,
+        type: 1,
+        building: 1,
+        floor: 1,
+        amenities: 1
+      })
+      .toArray();
+
+    if (locations.length === 0) {
+      return res.status(503).json({
+        error: 'Service Unavailable',
+        message: 'No locations available in database. Please seed the database first.'
+      });
+    }
+
+    // Parse intent using LLM
+    const parsedIntent = await parseNavigationIntent(query, locations);
+
+    // Enrich with full location details if IDs were found
+    if (parsedIntent.start?.id) {
+      const startDetails = await db.collection('locations').findOne({ _id: parsedIntent.start.id });
+      if (startDetails) {
+        parsedIntent.start.details = startDetails;
+      }
+    }
+
+    if (parsedIntent.end?.id) {
+      const endDetails = await db.collection('locations').findOne({ _id: parsedIntent.end.id });
+      if (endDetails) {
+        parsedIntent.end.details = endDetails;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      data: parsedIntent
+    });
+
+  } catch (error) {
+    console.error('Error parsing intent:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to parse navigation intent',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/chat/navigate
+ * Complete chat-to-navigation pipeline
+ * Parses intent with LLM, then generates navigation path
+ * Request body: { query: "I am at the main gate, I want to borrow some books" }
+ */
+app.post('/api/chat/navigate', async (req, res) => {
+  try {
+    const { query } = req.body;
+
+    // Validate input
+    if (!query || typeof query !== 'string' || query.trim() === '') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Query is required in request body: { "query": "your navigation request" }'
+      });
+    }
+
+    // Step 1: Parse intent using LLM
+    const locations = await db.collection('locations')
+      .find({})
+      .project({
+        _id: 1,
+        name: 1,
+        type: 1,
+        building: 1,
+        floor: 1,
+        amenities: 1
+      })
+      .toArray();
+
+    const parsedIntent = await parseNavigationIntent(query, locations);
+
+    // Step 2: Validate that we have both start and end locations
+    // If start or end are missing, return needsClarification so frontend can ask follow-ups
+    if (!parsedIntent.start?.id || !parsedIntent.end?.id) {
+      return res.status(200).json({
+        success: false,
+        needsClarification: true,
+        message: 'Ambiguous request; follow-up required',
+        parsedIntent: parsedIntent
+      });
+    }
+
+    // Step 3: Generate navigation path
+    const pathData = await findNavigationPath(parsedIntent.start.id, parsedIntent.end.id);
+
+    res.status(200).json({
+      success: true,
+      parsedIntent: parsedIntent,
+      navigation: pathData,
+      originalQuery: query
+    });
+
+  } catch (error) {
+    // Check if it's a rate limiting error
+    if (error.message && (error.message.includes('rate-limited') || error.message.includes('429'))) {
+      return res.status(503).json({
+        success: false,
+        error: 'Service Temporarily Unavailable',
+        message: 'The AI navigation assistant is temporarily unavailable due to rate limiting. Please use the Manual Entry page or try again in a few moments.',
+        suggestion: 'Use Manual Entry (Map-style) for immediate navigation',
+        needsClarification: true
+      });
+    }
+    
+    if (error.status) {
+      return res.status(error.status).json({
+        error: error.status === 404 ? 'Not Found' : 'Bad Request',
+        message: error.message
+      });
+    }
+    console.error('Error in chat navigation:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to process navigation request',
+      details: error.message
     });
   }
 });

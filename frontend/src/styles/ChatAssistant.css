@@ -13,6 +13,19 @@
   animation: slideIn 0.3s ease;
 }
 
+/* Embedded (inline) mode: used when ChatAssistant is placed inside a page as the input box */
+.chat-assistant.embedded {
+  position: static;
+  width: 100%;
+  height: auto;
+  box-shadow: none;
+  background: transparent;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  animation: none;
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;

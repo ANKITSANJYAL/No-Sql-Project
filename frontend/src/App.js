@@ -5,6 +5,9 @@ import SearchBar from './components/SearchBar';
 import NavigationView from './components/NavigationView';
 import LocationDetails from './components/LocationDetails';
 import ChatAssistant from './components/ChatAssistant';
+import LandingPage from './pages/LandingPage';
+import ManualPage from './pages/ManualPage';
+import ChatPage from './pages/ChatPage';
 import { API_ENDPOINTS } from './config/api';
 import './styles/App.css';
 
@@ -26,15 +29,16 @@ function App() {
     
     try {
       const response = await fetch(`${API_ENDPOINTS.navigate}?start=${encodeURIComponent(startId)}&end=${encodeURIComponent(endId)}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to fetch navigation: ${response.status}`);
+
+      const text = await response.text();
+      let data = null;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        throw new Error(`Navigation service returned unexpected response: ${text.slice(0,200)}`);
       }
       
-      const data = await response.json();
-      
-      if (data.success) {
+  if (data.success) {
         // The API response spreads pathData directly, so all navigation data is at the top level
         setNavigationData(data);
       } else {
@@ -55,64 +59,9 @@ function App() {
         
         <main className="main-content">
           <Routes>
-            <Route path="/" element={
-              <>
-                <section className="hero-section">
-                  <div className="hero-content">
-                    <h1 className="hero-title">Navigate Your Campus with Ease</h1>
-                    <p className="hero-subtitle">
-                      Turn-by-turn indoor navigation with visual guidance
-                    </p>
-                    
-                    <SearchBar 
-                      onSearch={handleSearch}
-                      onLocationSelect={setSelectedLocation}
-                      startValue={startLocation}
-                      endValue={endLocation}
-                    />
-                  </div>
-                </section>
-
-                {isLoadingNavigation && (
-                  <div className="navigation-loading">
-                    <p>Loading directions...</p>
-                  </div>
-                )}
-
-                {navigationError && (
-                  <div className="navigation-error">
-                    <p>Warning: {navigationError}</p>
-                  </div>
-                )}
-
-                {navigationData && !isLoadingNavigation && (
-                  <NavigationView 
-                    navigationData={navigationData}
-                    startLocation={startLocation}
-                    endLocation={endLocation}
-                  />
-                )}
-
-                {selectedLocation && (
-                  <LocationDetails 
-                    location={selectedLocation}
-                    onClose={() => setSelectedLocation(null)}
-                    onNavigate={(startName, endName) => {
-                      setStartLocation(startName);
-                      setEndLocation(endName);
-                      setSelectedLocation(null); // Close popup
-                      // Focus on destination input after popup closes
-                      setTimeout(() => {
-                        const endInputElement = document.querySelector('.end-icon')?.parentElement?.querySelector('.search-input');
-                        if (endInputElement) {
-                          endInputElement.focus();
-                        }
-                      }, 150);
-                    }}
-                  />
-                )}
-              </>
-            } />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/manual" element={<ManualPage />} />
+            <Route path="/chat" element={<ChatPage />} />
           </Routes>
         </main>
 

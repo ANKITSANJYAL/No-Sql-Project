@@ -16,6 +16,8 @@ export const API_ENDPOINTS = {
   
   // Chat/RAG endpoints
   chat: `${API_BASE_URL}/chat`,
+  chatParseIntent: `${API_BASE_URL}/chat/parse-intent`,
+  chatNavigate: `${API_BASE_URL}/chat/navigate`,
   
   // Additional endpoints
   buildings: `${API_BASE_URL}/buildings`,

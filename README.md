@@ -29,6 +29,10 @@ RamsNavigator provides turn-by-turn indoor navigation guidance for navigating Fo
 
 - **Location Search**: Search locations by name, building, or description
 - **Turn-by-Turn Navigation**: Get detailed step-by-step directions between locations
+- **AI Chat Assistant**: Natural language navigation using LLM (OpenRouter)
+  - "I'm at the main gate, I want to borrow books"
+  - "Take me to room 817"
+  - Understands activities and amenities (coffee, library, classroom, etc.)
 - **Location Details**: View comprehensive information about each location
 - **Building & Floor Filtering**: Filter locations by building and floor
 - **Modern UI**: Responsive, user-friendly interface
@@ -123,9 +127,15 @@ MONGODB_DATABASE=<DB_NAME>
 NEO4J_URI=<NEO4J_URI>
 NEO4J_USERNAME=<neo4j_username>
 NEO4J_PASSWORD=<your_neo4j_password>
+
+# OpenRouter API Configuration (for AI Chat)
+OPENROUTER_API_KEY=your_openrouter_api_key_here
 ```
 
-**Important**: Replace `your_neo4j_password` with your actual Neo4j password.
+**Important**: 
+- Replace `your_neo4j_password` with your actual Neo4j password
+- For AI chat feature, get a free API key from [OpenRouter.ai](https://openrouter.ai/)
+- See `backend/OPENROUTER_SETUP.md` for detailed AI setup instructions
 
 ### Frontend Configuration
 
@@ -281,6 +291,10 @@ Complete API documentation is available in `backend/API_DOCUMENTATION.md`.
 #### Navigation Endpoints
 - `GET /api/navigate?start=id&end=id` - Get navigation path
 - `POST /api/navigate` - Get navigation path (POST method)
+
+#### AI Chat Endpoints
+- `POST /api/chat/parse-intent` - Parse natural language query
+- `POST /api/chat/navigate` - Complete chat-to-navigation pipeline
 
 #### Utility Endpoints
 - `GET /api/health` - Health check

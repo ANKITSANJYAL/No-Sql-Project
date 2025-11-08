@@ -1,0 +1,225 @@
+/* Chat page: two-column layout matching ManualPage */
+.chat-page {
+	padding: 16px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	width: 100%;
+}
+
+/* Two-column layout: chat input left, fixed output panel on right */
+.chat-layout {
+	display: flex;
+	gap: 32px;
+	align-items: flex-start;
+	width: 100%;
+	max-width: 1400px;
+	margin: 0 auto;
+	padding: 0 24px;
+}
+
+.chat-left {
+	flex: 0 0 500px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.chat-header-left {
+	text-align: left;
+	background: none;
+	color: var(--text-primary);
+	padding: 0;
+	margin-bottom: 20px;
+}
+
+.chat-header-left h2 {
+	margin-bottom: 8px;
+	font-size: 1.75rem;
+	font-weight: 700;
+}
+
+.chat-header-left p {
+	color: var(--text-secondary);
+	font-size: 1rem;
+}
+
+.chat-input-area {
+	width: 100%;
+}
+
+.chat-output {
+	flex: 1;
+	max-width: 850px;
+	height: calc(100vh - 180px);
+	min-height: 600px;
+	background: white;
+	border-radius: var(--radius-md);
+	box-shadow: var(--shadow-lg);
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	position: sticky;
+	top: 100px;
+}
+
+.chat-placeholder {
+	color: var(--text-secondary);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	text-align: center;
+	padding: 40px;
+}
+
+/* Navigation view within chat page output box */
+.chat-output .navigation-view {
+	padding: 0;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.chat-output .navigation-container {
+	box-shadow: none;
+	border-radius: 0;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.chat-output .navigation-header {
+	flex-shrink: 0;
+	padding: 20px;
+}
+
+.chat-output .navigation-title {
+	font-size: 1.4rem;
+}
+
+.chat-output .navigation-content {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	overflow-y: auto;
+	padding: 20px;
+}
+
+.chat-output .current-step-visual {
+	flex-shrink: 0;
+	margin-bottom: 20px;
+}
+
+.chat-output .step-image-container {
+	margin-bottom: 16px;
+}
+
+.chat-output .step-image,
+.chat-output .step-image-placeholder {
+	height: 220px;
+}
+
+.chat-output .step-controls {
+	margin-bottom: 20px;
+	flex-shrink: 0;
+}
+
+.chat-output .all-steps {
+	margin-top: auto;
+	padding-top: 20px;
+	border-top: 2px solid var(--bg-secondary);
+}
+
+.chat-output .steps-title {
+	font-size: 1rem;
+	margin-bottom: 12px;
+}
+
+.chat-output .steps-list {
+	max-height: 300px;
+	overflow-y: auto;
+	padding-right: 8px;
+}
+
+.chat-output .step-item {
+	padding: 12px;
+}
+
+.chat-output .step-marker {
+	width: 28px;
+	height: 28px;
+	font-size: 0.85rem;
+}
+
+.chat-output .step-text {
+	font-size: 0.9rem;
+}
+
+.chat-output .step-meta {
+	font-size: 0.8rem;
+}
+
+/* View Toggle */
+.view-toggle {
+	display: flex;
+	gap: 8px;
+	padding: 12px 16px;
+	background: var(--bg-secondary);
+	border-bottom: 1px solid var(--border-color);
+}
+
+.toggle-btn {
+	flex: 1;
+	padding: 10px 16px;
+	border-radius: var(--radius-md);
+	font-size: 0.9rem;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	transition: var(--transition);
+	background: white;
+	color: var(--text-secondary);
+	border: 1px solid var(--border-color);
+	cursor: pointer;
+}
+
+.toggle-btn:hover {
+	background: var(--bg-tertiary);
+	color: var(--text-primary);
+}
+
+.toggle-btn.active {
+	background: var(--primary-color);
+	color: white;
+	border-color: var(--primary-color);
+}
+
+.toggle-btn svg {
+	flex-shrink: 0;
+}
+
+/* When ChatAssistant renders embedded, style it properly */
+.chat-input-area .chat-assistant.embedded {
+	width: 100%;
+}
+
+@media (max-width: 1024px) {
+	.chat-output {
+		position: static;
+		width: 100%;
+		height: auto;
+		min-height: 500px;
+	}
+	.chat-layout {
+		flex-direction: column;
+		max-width: 800px;
+		padding-bottom: 24px;
+	}
+	.chat-left {
+		flex: 1;
+		width: 100%;
+	}
+}
