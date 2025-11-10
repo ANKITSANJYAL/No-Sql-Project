@@ -5,22 +5,29 @@
 .manual-center { width:100%; display:flex; flex-direction:column; align-items:center; gap:16px; }
 .manual-center .search-bar-container { max-width:700px; width:90%; }
 
-/* Two-column layout: inputs left, fixed output panel on right */
+/* Split-screen layout: Left Panel (25-30%) and Right Panel (70-75%) */
 .manual-layout {
 	display: flex;
-	gap: 32px;
-	align-items: flex-start;
+	gap: 0;
+	align-items: stretch;
 	width: 100%;
-	max-width: 1400px;
+	height: calc(100vh - 120px);
+	max-width: 100%;
 	margin: 0 auto;
-	padding: 0 24px;
+	padding: 0;
 }
 
 .manual-left {
-	flex: 0 0 500px;
+	flex: 0 0 28%;
+	min-width: 300px;
+	max-width: 400px;
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
+	padding: 24px;
+	background: var(--bg-secondary);
+	border-right: 1px solid var(--border-color);
+	overflow-y: auto;
 }
 
 .manual-header-left {
@@ -35,19 +42,30 @@
 	width: 100%; 
 }
 
-.manual-output {
+.manual-right-panel {
 	flex: 1;
-	max-width: 850px;
-	height: calc(100vh - 180px);
-	min-height: 600px;
+	display: flex;
+	height: 100%;
+	min-width: 0;
 	background: white;
-	border-radius: var(--radius-md);
-	box-shadow: var(--shadow-lg);
+}
+
+.manual-graph-container {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	overflow: hidden;
+	position: relative;
+}
+
+.manual-output {
+	width: 100%;
+	height: 100%;
+	background: white;
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;
-	position: sticky;
-	top: 100px;
 }
 
 .manual-output-placeholder { 
@@ -189,20 +207,28 @@
 }
 
 @media (max-width: 1024px) {
-	.manual-output { 
-		position: static; 
-		width: 100%; 
-		height: auto;
-		min-height: 500px;
-	}
 	.manual-layout { 
 		flex-direction: column; 
-		max-width: 800px; 
-		padding-bottom: 24px; 
+		height: auto;
 	}
 	.manual-left {
 		flex: 1;
 		width: 100%;
+		max-width: 100%;
+		min-width: 0;
+	}
+	.manual-right-panel {
+		flex-direction: column;
+		height: auto;
+		min-height: 600px;
+	}
+	.direction-properties-panel {
+		width: 100%;
+		flex: 0 0 auto;
+		height: 400px;
+		min-width: 0;
+		border-left: none;
+		border-top: 1px solid var(--border-color);
 	}
 }
 

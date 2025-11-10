@@ -13,7 +13,7 @@ const dummyLocations = [
     type: "entrance",
     images: [
       {
-        url: `${GCP_STORAGE_BASE}/locations/image1.jpg`,
+        url: `${GCP_STORAGE_BASE}/locations/veronica_lally_threatre.jpg`,
         alt_text: "Main entrance doors",
         orientation: "north",
         is_primary: true
