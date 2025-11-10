@@ -2,9 +2,10 @@
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 20px;
+  padding: 0;
+  overflow: hidden;
 }
 
 .navigation-container {
@@ -12,8 +13,9 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow: hidden;
 }
 
 .navigation-empty {
@@ -25,10 +27,14 @@
 /* Location Image Container */
 .location-image-container {
   width: 100%;
-  max-width: 800px;
+  height: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 16px 20px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Navigation Controls at Top */
@@ -116,18 +122,25 @@
 /* Location Image Wrapper */
 .location-image-wrapper {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  flex: 1;
+  min-height: 200px;
+  max-height: 100%;
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   background: var(--bg-secondary);
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .location-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
   display: block;
 }
 
@@ -153,11 +166,13 @@
 /* Responsive Design */
 @media (max-width: 768px) {
   .navigation-view {
-    padding: 16px;
+    padding: 0;
   }
 
   .location-image-container {
     max-width: 100%;
+    padding: 12px 16px;
+    gap: 12px;
   }
 
   .image-navigation-controls {
@@ -179,10 +194,16 @@
 
   .location-image-wrapper {
     border-radius: var(--radius-md);
+    min-height: 150px;
   }
 }
 
 @media (max-width: 480px) {
+  .location-image-container {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
   .nav-btn {
     width: 36px;
     height: 36px;
@@ -199,5 +220,22 @@
 
   .step-current {
     font-size: 1.1rem;
+  }
+
+  .location-image-wrapper {
+    min-height: 120px;
+  }
+}
+
+/* Ensure image is always visible on all screen sizes */
+@media (max-height: 600px) {
+  .location-image-wrapper {
+    min-height: 150px;
+  }
+}
+
+@media (max-height: 400px) {
+  .location-image-wrapper {
+    min-height: 100px;
   }
 }
