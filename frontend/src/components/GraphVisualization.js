@@ -41,15 +41,21 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
   const calculateSpatialPositions = () => {
     if (!steps || steps.length === 0) return {};
     
+    const STEP_DISTANCE = 200; // Base distance between nodes
+    const VERTICAL_OFFSET = 180; // Special offset for vertical movement
+    
     const positions = {};
-    let currentX = 0;
-    let currentY = 0;
-    let currentAngle = 0; // 0 = right, 90 = down, 180 = left, 270 = up
+    // Start at bottom center - y increases downward in screen coordinates
+    // Start with a positive y value so path flows upward (decreasing y)
+    // Calculate starting Y based on number of steps to ensure enough room
+    const estimatedPathHeight = steps.length * STEP_DISTANCE * 0.8;
+    let currentX = 0; // Center horizontally
+    let currentY = Math.max(300, estimatedPathHeight); // Start at bottom with enough room
+    // Angle system: 0° = up (north), 90° = right (east), 180° = down (south), 270° = left (west)
+    // Start facing upward (north)
+    let currentAngle = 0; // 0 = up (north)
     
-    const STEP_DISTANCE = 150; // Base distance between nodes
-    const VERTICAL_OFFSET = 120; // Special offset for vertical movement
-    
-    // First node at origin
+    // First node at bottom
     positions[steps[0].locationId] = { x: currentX, y: currentY };
     
     // Calculate positions based on directions
@@ -62,25 +68,30 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
       const pixelDistance = Math.max(STEP_DISTANCE, Math.min(distance * 2, STEP_DISTANCE * 2));
       
       if (direction === 'vertical') {
-        // For elevators/stairs, move slightly offset to show vertical change
-        currentX += 50;
-        currentY += VERTICAL_OFFSET;
+        // For elevators/stairs, move upward (decrease y)
+        currentY -= VERTICAL_OFFSET;
+        // Slight horizontal offset to show vertical change
+        currentX += 30;
       } else if (direction === 'right') {
-        // Turn right (clockwise)
+        // Turn right (clockwise from current direction)
+        // In navigation: right turn means rotate clockwise
         currentAngle = (currentAngle + 90) % 360;
       } else if (direction === 'left') {
-        // Turn left (counter-clockwise)
+        // Turn left (counter-clockwise from current direction)
         currentAngle = (currentAngle - 90 + 360) % 360;
       } else if (direction === 'back') {
-        // Turn around
+        // Turn around (180 degrees)
         currentAngle = (currentAngle + 180) % 360;
       }
-      // 'straight' doesn't change angle
+      // 'straight' doesn't change angle - continues in current direction
       
       // Calculate new position based on current angle
+      // Convert angle to radians and adjust for screen coordinates
+      // In screen coords: y increases downward, so up = -sin, down = +sin
       const radians = (currentAngle * Math.PI) / 180;
-      currentX += Math.cos(radians) * pixelDistance;
-      currentY += Math.sin(radians) * pixelDistance;
+      // For screen coordinates: 0° (up) = -y, 90° (right) = +x, 180° (down) = +y, 270° (left) = -x
+      currentX += Math.sin(radians) * pixelDistance; // sin(0°)=0, sin(90°)=1 (right), sin(180°)=0, sin(270°)=-1 (left)
+      currentY -= Math.cos(radians) * pixelDistance; // cos(0°)=1 (up), cos(90°)=0, cos(180°)=-1 (down), cos(270°)=0
       
       positions[steps[i].locationId] = { x: currentX, y: currentY };
     }
