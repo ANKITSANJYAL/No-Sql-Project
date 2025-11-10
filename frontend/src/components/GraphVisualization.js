@@ -109,14 +109,17 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
         const isCurrent = index === currentStepIndex;
         const position = spatialPositions[nodeId] || { x: 0, y: 0 };
 
-        const hasImage = step.location?.images?.[0]?.url || step.location?.images?.[0];
+        // Extract image URL properly
+        const imageUrl = step.location?.images?.[0]?.url || 
+                        (typeof step.location?.images?.[0] === 'string' ? step.location.images[0] : null);
+        const hasImage = !!imageUrl;
         
         elements.push({
           data: {
             id: nodeId,
             label: step.location?.name || nodeId,
             type: step.location?.type || 'location',
-            image: hasImage,
+            image: imageUrl || '',
             description: step.location?.description,
             building: step.location?.building,
             floor: step.location?.floor,
@@ -173,7 +176,7 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
       selector: 'node',
       style: {
         'background-color': '#e0e0e0',
-        'border-width': 2,
+        'border-width': 1,
         'border-color': '#999',
         'label': 'data(label)',
         'text-valign': 'bottom',
@@ -187,15 +190,19 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
         'height': 45,
         'background-image': 'data(image)',
         'background-fit': 'cover',
-        'background-clip': 'none',
-        'background-opacity': 1
+        'background-width': '100%',
+        'background-height': '100%',
+        'background-position-x': '50%',
+        'background-position-y': '50%',
+        'background-opacity': 1,
+        'shape': 'ellipse'
       }
     },
     {
       selector: 'node.start-node',
       style: {
         'border-color': '#2E7D32',
-        'border-width': 3,
+        'border-width': 1.5,
         'width': 50,
         'height': 50,
         'border-style': 'solid'
@@ -205,7 +212,7 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
       selector: 'node.end-node',
       style: {
         'border-color': '#C62828',
-        'border-width': 3,
+        'border-width': 1.5,
         'width': 50,
         'height': 50,
         'border-style': 'solid'
@@ -215,7 +222,7 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
       selector: 'node.current-node',
       style: {
         'border-color': '#1565C0',
-        'border-width': 4,
+        'border-width': 2,
         'width': 55,
         'height': 55,
         'box-shadow': '0 0 20px #2196F3'
@@ -244,7 +251,12 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
     {
       selector: 'node.has-image',
       style: {
-        'background-opacity': 1
+        'background-opacity': 1,
+        'background-fit': 'cover',
+        'background-width': '100%',
+        'background-height': '100%',
+        'background-position-x': '50%',
+        'background-position-y': '50%'
       }
     },
     {
@@ -350,12 +362,13 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
       // Add hover effects for better interactivity
       cyRef.current.on('mouseover', 'node', (event) => {
         event.target.style('cursor', 'pointer');
-        event.target.style('border-width', parseInt(event.target.style('border-width')) + 1);
+        const currentWidth = parseFloat(event.target.style('border-width')) || 1;
+        event.target.style('border-width', currentWidth + 0.5);
       });
       
       cyRef.current.on('mouseout', 'node', (event) => {
-        const baseWidth = event.target.hasClass('current-node') ? 4 : 
-                         event.target.hasClass('start-node') || event.target.hasClass('end-node') ? 3 : 2;
+        const baseWidth = event.target.hasClass('current-node') ? 2 : 
+                         event.target.hasClass('start-node') || event.target.hasClass('end-node') ? 1.5 : 1;
         event.target.style('border-width', baseWidth);
       });
       
