@@ -107,28 +107,28 @@ async function seedNeo4j() {
         to: 'second_floor_junction',
         distance: 0.5,
         weight: 0.5,
-        instructions: 'Step off escalator, turn LEFT, walk 0.5m to reach the main junction'
+        instructions: 'Step off escalator and turn LEFT, walk 0.5m to reach the main junction'
       },
       {
         from: 'second_floor_junction',
         to: 'elevator_area',
-        distance: 0,
-        weight: 0,
-        instructions: 'Elevator bank is on your LEFT'
+        distance: 1,
+        weight: 1,
+        instructions: 'From the junction, turn LEFT to reach the elevator area'
       },
       {
         from: 'second_floor_junction',
         to: 'plaza_gate_area',
-        distance: 0,
-        weight: 0,
-        instructions: 'Plaza gate doors are on your RIGHT'
+        distance: 1,
+        weight: 1,
+        instructions: 'From the junction, turn RIGHT to reach the plaza gate doors'
       },
       {
         from: 'second_floor_junction',
         to: 'ram_cafe',
         distance: 3,
         weight: 3,
-        instructions: 'Walk straight ahead 3m to Ram Café'
+        instructions: 'From the junction, walk STRAIGHT ahead 3m to Ram Café'
       },
       {
         from: 'elevator_area',

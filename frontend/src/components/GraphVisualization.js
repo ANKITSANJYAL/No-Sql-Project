@@ -176,7 +176,8 @@ function GraphVisualization({ navigationData, startLocation, endLocation, onNode
       const instruction = steps[i + 1].instruction;
       const distance = steps[i + 1].distance;
       const direction = extractDirection(instruction);
-      const isActive = i < currentStepIndex;
+      const isActive = true; // Always show all edges as active/visible
+      const isPast = i < currentStepIndex; // Track if this step is already completed
 
       elements.push({
         data: {
@@ -186,7 +187,8 @@ function GraphVisualization({ navigationData, startLocation, endLocation, onNode
           label: instruction,
           distance: distance,
           direction: direction,
-          isActive
+          isActive,
+          isPast
         },
         classes: isActive ? 'active-edge' : 'inactive-edge'
       });
@@ -330,7 +332,7 @@ function GraphVisualization({ navigationData, startLocation, endLocation, onNode
         'color': '#333',
         'arrow-scale': 1.3,
         'text-wrap': 'wrap',
-        'text-max-width': '120px',
+        'text-max-width': '200px', // Increased from 120px to 200px to prevent overlap
         'edge-text-rotation': 'none'
       }
     },
@@ -350,7 +352,9 @@ function GraphVisualization({ navigationData, startLocation, endLocation, onNode
       selector: 'edge.inactive-edge',
       style: {
         'opacity': 0.3,
-        'z-index': 1
+        'z-index': 1,
+        'label': '', // Hide label on inactive edges to reduce clutter
+        'text-opacity': 0 // Make text invisible on inactive edges
       }
     },
     {
