@@ -17,6 +17,12 @@ function SearchBar({ onSearch, onLocationSelect, startValue, endValue, showNatur
   const [startInputFocused, setStartInputFocused] = useState(false);
   const [endInputFocused, setEndInputFocused] = useState(false);
   const searchTimeoutRef = useRef(null);
+  
+  // Intermediate locations state (up to 2)
+  const [intermediateLocations, setIntermediateLocations] = useState([]);
+  const [intermediateInputs, setIntermediateInputs] = useState([]);
+  const [intermediateSuggestions, setIntermediateSuggestions] = useState([]);
+  const [intermediateFocused, setIntermediateFocused] = useState([]);
 
   // Update inputs when props change
   useEffect(() => {
@@ -385,9 +391,28 @@ function SearchBar({ onSearch, onLocationSelect, startValue, endValue, showNatur
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Validate that all intermediate locations are selected if they have input
+    const validIntermediateLocations = intermediateLocations.filter(loc => loc !== null);
+    const hasUnselectedIntermediate = intermediateInputs.some((input, index) => 
+      input && !intermediateLocations[index]
+    );
+    
+    if (hasUnselectedIntermediate) {
+      alert('Please select all intermediate locations from the suggestions');
+      return;
+    }
+    
     if (startInput && endInput && selectedStartLocation && selectedEndLocation) {
-      // Call onSearch with location IDs for API call
-      onSearch(selectedStartLocation.id, selectedEndLocation.id, selectedStartLocation.name, selectedEndLocation.name);
+      // Call onSearch with location IDs for API call, including intermediate locations
+      const waypoints = validIntermediateLocations.map(loc => ({ id: loc.id, name: loc.name }));
+      onSearch(
+        selectedStartLocation.id, 
+        selectedEndLocation.id, 
+        selectedStartLocation.name, 
+        selectedEndLocation.name,
+        waypoints
+      );
       setStartSuggestions([]);
       setEndSuggestions([]);
       setStartInputFocused(false);
@@ -400,7 +425,8 @@ function SearchBar({ onSearch, onLocationSelect, startValue, endValue, showNatur
       if (startLoc && endLoc) {
         setSelectedStartLocation(startLoc);
         setSelectedEndLocation(endLoc);
-        onSearch(startLoc.id, endLoc.id, startLoc.name, endLoc.name);
+        const waypoints = validIntermediateLocations.map(loc => ({ id: loc.id, name: loc.name }));
+        onSearch(startLoc.id, endLoc.id, startLoc.name, endLoc.name, waypoints);
         setStartSuggestions([]);
         setEndSuggestions([]);
         setStartInputFocused(false);
@@ -433,6 +459,120 @@ function SearchBar({ onSearch, onLocationSelect, startValue, endValue, showNatur
     // Just set the value and let user submit
   };
 
+  // Handler to add a new intermediate location
+  const handleAddIntermediateLocation = () => {
+    if (intermediateLocations.length < 2) {
+      const newIndex = intermediateLocations.length;
+      setIntermediateLocations([...intermediateLocations, null]);
+      setIntermediateInputs([...intermediateInputs, '']);
+      setIntermediateSuggestions([...intermediateSuggestions, []]);
+      setIntermediateFocused([...intermediateFocused, false]);
+    }
+  };
+
+  // Handler to remove an intermediate location
+  const handleRemoveIntermediateLocation = (index) => {
+    const newLocations = intermediateLocations.filter((_, i) => i !== index);
+    const newInputs = intermediateInputs.filter((_, i) => i !== index);
+    const newSuggestions = intermediateSuggestions.filter((_, i) => i !== index);
+    const newFocused = intermediateFocused.filter((_, i) => i !== index);
+    setIntermediateLocations(newLocations);
+    setIntermediateInputs(newInputs);
+    setIntermediateSuggestions(newSuggestions);
+    setIntermediateFocused(newFocused);
+  };
+
+  // Handler for intermediate location input change
+  const handleIntermediateInputChange = (index, value) => {
+    const newInputs = [...intermediateInputs];
+    newInputs[index] = value;
+    setIntermediateInputs(newInputs);
+    
+    if (!value) {
+      const newLocations = [...intermediateLocations];
+      newLocations[index] = null;
+      setIntermediateLocations(newLocations);
+    }
+    
+    // Get all selected location IDs to exclude from suggestions
+    const excludeIds = new Set();
+    if (selectedStartLocation?.id) excludeIds.add(selectedStartLocation.id);
+    if (selectedEndLocation?.id) excludeIds.add(selectedEndLocation.id);
+    intermediateLocations.forEach((loc, i) => {
+      if (i !== index && loc?.id) excludeIds.add(loc.id);
+    });
+    
+    searchLocations(value, (suggestions) => {
+      const newSuggestions = [...intermediateSuggestions];
+      newSuggestions[index] = suggestions.filter(loc => !excludeIds.has(loc.id));
+      setIntermediateSuggestions(newSuggestions);
+    });
+  };
+
+  // Handler for intermediate location focus
+  const handleIntermediateFocus = (index) => {
+    const newFocused = [...intermediateFocused];
+    newFocused[index] = true;
+    setIntermediateFocused(newFocused);
+    
+    const inputValue = intermediateInputs[index] || '';
+    const excludeIds = new Set();
+    if (selectedStartLocation?.id) excludeIds.add(selectedStartLocation.id);
+    if (selectedEndLocation?.id) excludeIds.add(selectedEndLocation.id);
+    intermediateLocations.forEach((loc, i) => {
+      if (i !== index && loc?.id) excludeIds.add(loc.id);
+    });
+    
+    if (inputValue === '' && allLocations.length > 0) {
+      const filtered = allLocations.filter(loc => !excludeIds.has(loc.id));
+      const newSuggestions = [...intermediateSuggestions];
+      newSuggestions[index] = filtered.slice(0, 10);
+      setIntermediateSuggestions(newSuggestions);
+    } else if (inputValue.length > 0) {
+      searchLocations(inputValue, (suggestions) => {
+        const newSuggestions = [...intermediateSuggestions];
+        newSuggestions[index] = suggestions.filter(loc => !excludeIds.has(loc.id));
+        setIntermediateSuggestions(newSuggestions);
+      });
+    }
+  };
+
+  // Handler for intermediate location blur
+  const handleIntermediateBlur = (index, e) => {
+    const suggestionsDropdown = e.currentTarget.closest('.input-wrapper')?.querySelector('.suggestions-dropdown');
+    if (!suggestionsDropdown?.contains(e.relatedTarget)) {
+      const newFocused = [...intermediateFocused];
+      newFocused[index] = false;
+      setIntermediateFocused(newFocused);
+      setTimeout(() => {
+        if (!newFocused[index]) {
+          const newSuggestions = [...intermediateSuggestions];
+          newSuggestions[index] = [];
+          setIntermediateSuggestions(newSuggestions);
+        }
+      }, 200);
+    }
+  };
+
+  // Handler for intermediate location suggestion click
+  const handleIntermediateSuggestionClick = (index, location) => {
+    const newInputs = [...intermediateInputs];
+    newInputs[index] = location.name;
+    setIntermediateInputs(newInputs);
+    
+    const newLocations = [...intermediateLocations];
+    newLocations[index] = location;
+    setIntermediateLocations(newLocations);
+    
+    const newSuggestions = [...intermediateSuggestions];
+    newSuggestions[index] = [];
+    setIntermediateSuggestions(newSuggestions);
+    
+    const newFocused = [...intermediateFocused];
+    newFocused[index] = false;
+    setIntermediateFocused(newFocused);
+  };
+
   return (
     <div className="search-bar-container">
       <form className="search-form" onSubmit={handleSubmit}>
@@ -453,6 +593,21 @@ function SearchBar({ onSearch, onLocationSelect, startValue, endValue, showNatur
               onFocus={handleStartFocus}
               onBlur={handleStartBlur}
             />
+            {/* Add intermediate location button - shown on the right side of start input when no intermediates */}
+            {intermediateLocations.length === 0 && (
+              <button
+                type="button"
+                className="add-location-button-inline"
+                onClick={handleAddIntermediateLocation}
+                disabled={intermediateLocations.length >= 2}
+                title="Add intermediate location"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+            )}
             {startSuggestions.length > 0 && startInputFocused && (
               <div className="suggestions-dropdown">
                 {startSuggestions.map(loc => (
@@ -477,6 +632,63 @@ function SearchBar({ onSearch, onLocationSelect, startValue, endValue, showNatur
             )}
           </div>
 
+          {/* Intermediate location inputs */}
+          {intermediateLocations.map((location, index) => (
+            <React.Fragment key={index}>
+              <div className="input-wrapper">
+                <div className="input-icon intermediate-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M12 1v6m0 6v6M23 12h-6m-6 0H1" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder={isLoading ? "Loading locations..." : "Intermediate location..."}
+                  value={intermediateInputs[index] || ''}
+                  onChange={(e) => handleIntermediateInputChange(index, e.target.value)}
+                  onFocus={() => handleIntermediateFocus(index)}
+                  onBlur={(e) => handleIntermediateBlur(index, e)}
+                />
+                {/* Always show remove button for intermediate locations */}
+                <button
+                  type="button"
+                  className="remove-location-button"
+                  onClick={() => handleRemoveIntermediateLocation(index)}
+                  title="Remove intermediate location"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+                {intermediateSuggestions[index]?.length > 0 && intermediateFocused[index] && (
+                  <div className="suggestions-dropdown">
+                    {intermediateSuggestions[index].map(loc => (
+                      <div 
+                        key={loc.id} 
+                        className="suggestion-item"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleIntermediateSuggestionClick(index, loc);
+                        }}
+                      >
+                        <div>
+                          <span className="suggestion-name">{loc.name}</span>
+                          <span className="suggestion-type">{loc.type}</span>
+                        </div>
+                        {loc.building && (
+                          <span className="suggestion-building">{loc.building}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </React.Fragment>
+          ))}
+
           <div className="input-wrapper">
             <div className="input-icon end-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -493,6 +705,21 @@ function SearchBar({ onSearch, onLocationSelect, startValue, endValue, showNatur
               onFocus={handleEndFocus}
               onBlur={handleEndBlur}
             />
+            {/* Show add button on destination input when there's room for more intermediate locations */}
+            {intermediateLocations.length < 2 && (
+              <button
+                type="button"
+                className="add-location-button-inline"
+                onClick={handleAddIntermediateLocation}
+                disabled={intermediateLocations.length >= 2}
+                title="Add intermediate location"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+            )}
             {endSuggestions.length > 0 && endInputFocused && (
               <div className="suggestions-dropdown">
                 {endSuggestions.map(loc => (
