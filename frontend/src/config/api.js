@@ -46,6 +46,26 @@ export const apiCall = async (endpoint, options = {}) => {
   }
 };
 
+/**
+ * Convert GCP Storage image URL to proxy URL to avoid CORS issues
+ * @param {string} imageUrl - The original GCP Storage URL
+ * @returns {string} - The proxied URL or original URL if not a GCP Storage URL
+ */
+export const getProxiedImageUrl = (imageUrl) => {
+  if (!imageUrl || typeof imageUrl !== 'string') {
+    return imageUrl;
+  }
+
+  // Only proxy GCP Storage URLs
+  if (imageUrl.startsWith('https://storage.googleapis.com/')) {
+    const encodedUrl = encodeURIComponent(imageUrl);
+    return `${API_BASE_URL}/images/proxy?url=${encodedUrl}`;
+  }
+
+  // Return original URL if not a GCP Storage URL
+  return imageUrl;
+};
+
 export default API_BASE_URL;
 
 

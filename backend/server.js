@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const https = require('https');
+const http = require('http');
 const { connectDatabases, getMongoDb, neo4jDriver } = require('./config/database');
 const { parseNavigationIntent } = require('./services/llmService');
 
@@ -351,6 +353,84 @@ app.post('/api/locations/batch', async (req, res) => {
       message: 'Failed to fetch locations'
     });
   }
+});
+
+// ============================================================================
+// IMAGE PROXY ENDPOINT (CORS fix for GCP Storage images)
+// ============================================================================
+
+/**
+ * GET /api/images/proxy?url=<encoded_gcp_url>
+ * Proxy images from GCP Storage to avoid CORS issues
+ * Example: /api/images/proxy?url=https%3A%2F%2Fstorage.googleapis.com%2Frams-navigator-images%2Flocations%2Fimage.jpg
+ */
+app.get('/api/images/proxy', (req, res) => {
+  console.log('Image proxy endpoint hit:', req.query);
+  const { url } = req.query;
+
+  if (!url) {
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: 'Image URL parameter is required'
+    });
+  }
+
+  // Decode the URL
+  let imageUrl;
+  try {
+    imageUrl = decodeURIComponent(url);
+  } catch (error) {
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: 'Invalid URL encoding'
+    });
+  }
+
+  // Validate that it's a GCP Storage URL (security measure)
+  if (!imageUrl.startsWith('https://storage.googleapis.com/')) {
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: 'Only GCP Storage URLs are allowed'
+    });
+  }
+
+  // Use the appropriate HTTP module based on URL protocol
+  const client = imageUrl.startsWith('https://') ? https : http;
+
+  // Fetch the image from GCP Storage
+  client.get(imageUrl, (imageResponse) => {
+    // Check if request was successful
+    if (imageResponse.statusCode !== 200) {
+      console.error(`Failed to fetch image: ${imageUrl}, status: ${imageResponse.statusCode}`);
+      return res.status(imageResponse.statusCode || 500).json({
+        error: 'Failed to fetch image',
+        message: `Failed to fetch image from GCP Storage: ${imageResponse.statusCode}`
+      });
+    }
+
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    // Set content type from the original response or default to image
+    const contentType = imageResponse.headers['content-type'] || 'image/jpeg';
+    res.setHeader('Content-Type', contentType);
+    
+    // Set cache headers (optional, for performance)
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+
+    // Pipe the image data to the response
+    imageResponse.pipe(res);
+  }).on('error', (error) => {
+    console.error('Error proxying image:', error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to proxy image from GCP Storage'
+      });
+    }
+  });
 });
 
 // ============================================================================
@@ -750,7 +830,7 @@ app.post('/api/chat/navigate', async (req, res) => {
         success: false,
         error: 'Service Temporarily Unavailable',
         message: 'The AI navigation assistant is temporarily unavailable due to rate limiting. Please use the Manual Entry page or try again in a few moments.',
-        suggestion: 'Use Manual Entry (Map-style) for immediate navigation',
+        suggestion: 'Use Manual Entry for immediate navigation',
         needsClarification: true
       });
     }

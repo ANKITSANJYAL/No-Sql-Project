@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
+import { getProxiedImageUrl } from '../config/api';
 import '../styles/GraphVisualization.css';
 
-function GraphVisualization({ navigationData, startLocation, endLocation }) {
-  const [selectedNode, setSelectedNode] = useState(null);
+function GraphVisualization({ navigationData, startLocation, endLocation, onNodeSelect }) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const cyRef = useRef(null);
+  const hasInitialZoomed = useRef(false);
 
   // Extract path data
   const steps = navigationData?.steps || [];
@@ -41,15 +42,21 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
   const calculateSpatialPositions = () => {
     if (!steps || steps.length === 0) return {};
     
+    const STEP_DISTANCE = 200; // Base distance between nodes
+    const VERTICAL_OFFSET = 180; // Special offset for vertical movement
+    
     const positions = {};
-    let currentX = 0;
-    let currentY = 0;
-    let currentAngle = 0; // 0 = right, 90 = down, 180 = left, 270 = up
+    // Start at bottom center - y increases downward in screen coordinates
+    // Start with a positive y value so path flows upward (decreasing y)
+    // Calculate starting Y based on number of steps to ensure enough room
+    const estimatedPathHeight = steps.length * STEP_DISTANCE * 0.8;
+    let currentX = 0; // Center horizontally
+    let currentY = Math.max(300, estimatedPathHeight); // Start at bottom with enough room
+    // Angle system: 0° = up (north), 90° = right (east), 180° = down (south), 270° = left (west)
+    // Start facing upward (north)
+    let currentAngle = 0; // 0 = up (north)
     
-    const STEP_DISTANCE = 150; // Base distance between nodes
-    const VERTICAL_OFFSET = 120; // Special offset for vertical movement
-    
-    // First node at origin
+    // First node at bottom
     positions[steps[0].locationId] = { x: currentX, y: currentY };
     
     // Calculate positions based on directions
@@ -62,25 +69,30 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
       const pixelDistance = Math.max(STEP_DISTANCE, Math.min(distance * 2, STEP_DISTANCE * 2));
       
       if (direction === 'vertical') {
-        // For elevators/stairs, move slightly offset to show vertical change
-        currentX += 50;
-        currentY += VERTICAL_OFFSET;
+        // For elevators/stairs, move upward (decrease y)
+        currentY -= VERTICAL_OFFSET;
+        // Slight horizontal offset to show vertical change
+        currentX += 30;
       } else if (direction === 'right') {
-        // Turn right (clockwise)
+        // Turn right (clockwise from current direction)
+        // In navigation: right turn means rotate clockwise
         currentAngle = (currentAngle + 90) % 360;
       } else if (direction === 'left') {
-        // Turn left (counter-clockwise)
+        // Turn left (counter-clockwise from current direction)
         currentAngle = (currentAngle - 90 + 360) % 360;
       } else if (direction === 'back') {
-        // Turn around
+        // Turn around (180 degrees)
         currentAngle = (currentAngle + 180) % 360;
       }
-      // 'straight' doesn't change angle
+      // 'straight' doesn't change angle - continues in current direction
       
       // Calculate new position based on current angle
+      // Convert angle to radians and adjust for screen coordinates
+      // In screen coords: y increases downward, so up = -sin, down = +sin
       const radians = (currentAngle * Math.PI) / 180;
-      currentX += Math.cos(radians) * pixelDistance;
-      currentY += Math.sin(radians) * pixelDistance;
+      // For screen coordinates: 0° (up) = -y, 90° (right) = +x, 180° (down) = +y, 270° (left) = -x
+      currentX += Math.sin(radians) * pixelDistance; // sin(0°)=0, sin(90°)=1 (right), sin(180°)=0, sin(270°)=-1 (left)
+      currentY -= Math.cos(radians) * pixelDistance; // cos(0°)=1 (up), cos(90°)=0, cos(180°)=-1 (down), cos(270°)=0
       
       positions[steps[i].locationId] = { x: currentX, y: currentY };
     }
@@ -109,14 +121,32 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
         const isCurrent = index === currentStepIndex;
         const position = spatialPositions[nodeId] || { x: 0, y: 0 };
 
-        const hasImage = step.location?.images?.[0]?.url || step.location?.images?.[0];
+        // Extract image URL the same way as DirectionPropertiesPanel
+        const locationImages = step.location?.images || [];
+        let imageUrl = '';
+        if (locationImages.length > 0) {
+          const firstImage = locationImages[0];
+          // Handle both object with url property and direct string
+          if (typeof firstImage === 'object' && firstImage !== null) {
+            imageUrl = firstImage.url || '';
+          } else if (typeof firstImage === 'string') {
+            imageUrl = firstImage;
+          }
+        }
+        
+        // Convert GCP Storage URLs to proxy URLs to avoid CORS issues
+        if (imageUrl) {
+          imageUrl = getProxiedImageUrl(imageUrl);
+        }
+        
+        const hasImage = !!imageUrl && imageUrl.trim() !== '';
         
         elements.push({
           data: {
             id: nodeId,
             label: step.location?.name || nodeId,
             type: step.location?.type || 'location',
-            image: hasImage,
+            image: imageUrl || undefined, // Use undefined instead of empty string
             description: step.location?.description,
             building: step.location?.building,
             floor: step.location?.floor,
@@ -172,8 +202,7 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
     {
       selector: 'node',
       style: {
-        'background-color': '#e0e0e0',
-        'border-width': 2,
+        'border-width': 1,
         'border-color': '#999',
         'label': 'data(label)',
         'text-valign': 'bottom',
@@ -185,17 +214,14 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
         'text-margin-y': 5,
         'width': 45,
         'height': 45,
-        'background-image': 'data(image)',
-        'background-fit': 'cover',
-        'background-clip': 'none',
-        'background-opacity': 1
+        'shape': 'ellipse'
       }
     },
     {
       selector: 'node.start-node',
       style: {
         'border-color': '#2E7D32',
-        'border-width': 3,
+        'border-width': 1.5,
         'width': 50,
         'height': 50,
         'border-style': 'solid'
@@ -205,7 +231,7 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
       selector: 'node.end-node',
       style: {
         'border-color': '#C62828',
-        'border-width': 3,
+        'border-width': 1.5,
         'width': 50,
         'height': 50,
         'border-style': 'solid'
@@ -215,7 +241,7 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
       selector: 'node.current-node',
       style: {
         'border-color': '#1565C0',
-        'border-width': 4,
+        'border-width': 2,
         'width': 55,
         'height': 55,
         'box-shadow': '0 0 20px #2196F3'
@@ -244,14 +270,24 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
     {
       selector: 'node.has-image',
       style: {
-        'background-opacity': 1
+        'background-image': 'data(image)',
+        'background-color': 'transparent !important',
+        'background-opacity': 1,
+        'background-fit': 'cover',
+        'background-width': '100%',
+        'background-height': '100%',
+        'background-position-x': '50%',
+        'background-position-y': '50%',
+        'background-clip': 'node',
+        'background-repeat': 'no-repeat'
       }
     },
     {
       selector: 'node.no-image',
       style: {
         'background-color': '#f5f5f5',
-        'background-opacity': 1
+        'background-opacity': 1,
+        'background-image': 'none'
       }
     },
     {
@@ -283,7 +319,7 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
         'label': 'data(label)',
         'font-size': '11px',
         'font-weight': 'bold',
-        'text-rotation': 'autorotate',
+        'text-rotation': 'none',
         'text-background-color': '#ffffff',
         'text-background-opacity': 0.95,
         'text-background-padding': '5px',
@@ -295,7 +331,7 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
         'arrow-scale': 1.3,
         'text-wrap': 'wrap',
         'text-max-width': '120px',
-        'edge-text-rotation': 'autorotate'
+        'edge-text-rotation': 'none'
       }
     },
     {
@@ -331,7 +367,7 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
     name: 'preset', // Use preset positions from our spatial calculations
     animate: true,
     animationDuration: 500,
-    fit: true, // Fit the graph to viewport
+    fit: false, // Don't auto-fit, we'll handle zoom manually
     padding: 50 // Padding around the graph
   };
 
@@ -339,7 +375,9 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
   const handleNodeTap = (event) => {
     const node = event.target;
     const nodeData = node.data();
-    setSelectedNode(nodeData);
+    if (onNodeSelect) {
+      onNodeSelect(nodeData);
+    }
   };
 
   // Initialize Cytoscape instance
@@ -350,33 +388,118 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
       // Add hover effects for better interactivity
       cyRef.current.on('mouseover', 'node', (event) => {
         event.target.style('cursor', 'pointer');
-        event.target.style('border-width', parseInt(event.target.style('border-width')) + 1);
+        const currentWidth = parseFloat(event.target.style('border-width')) || 1;
+        event.target.style('border-width', currentWidth + 0.5);
       });
       
       cyRef.current.on('mouseout', 'node', (event) => {
-        const baseWidth = event.target.hasClass('current-node') ? 4 : 
-                         event.target.hasClass('start-node') || event.target.hasClass('end-node') ? 3 : 2;
+        const baseWidth = event.target.hasClass('current-node') ? 2 : 
+                         event.target.hasClass('start-node') || event.target.hasClass('end-node') ? 1.5 : 1;
         event.target.style('border-width', baseWidth);
       });
       
-      // Fit to view with padding
+      // Zoom into first 2 nodes only once on initial load
+      if (!hasInitialZoomed.current && steps.length > 0) {
+        hasInitialZoomed.current = true;
+        setTimeout(() => {
+          // Get first 2 nodes only
+          const nodesToShow = Math.min(2, steps.length);
+          const nodeIds = steps.slice(0, nodesToShow).map(s => s.locationId);
+          
+          // Select nodes by their data id
+          const nodeSelector = nodeIds.map(id => `node[id = "${id}"]`).join(', ');
+          const nodes = cyRef.current.$(nodeSelector);
+          
+          if (nodes.length > 0) {
+            // Get bounding box of selected nodes
+            const bbox = nodes.boundingBox();
+            
+            // Center and zoom to show these nodes with padding
+            const centerX = (bbox.x1 + bbox.x2) / 2;
+            const centerY = (bbox.y1 + bbox.y2) / 2;
+            const width = bbox.x2 - bbox.x1;
+            const height = bbox.y2 - bbox.y1;
+            const maxDim = Math.max(width, height, 200); // Minimum dimension
+            
+            // Calculate zoom level to show nodes with padding
+            const containerWidth = cyRef.current.width();
+            const containerHeight = cyRef.current.height();
+            const targetSize = Math.min(containerWidth, containerHeight) * 0.5; // Use 50% of container
+            const zoom = Math.max(0.8, Math.min(targetSize / (maxDim + 150), 2)); // Add padding, cap at 2x, min 0.8x
+            
+            // Set zoom immediately without animation to prevent multiple zooms
+            cyRef.current.center({ x: centerX, y: centerY });
+            cyRef.current.zoom(zoom);
+          }
+        }, 300);
+      }
+      
+      // Debug: Check node image data after graph is rendered
       setTimeout(() => {
-        cyRef.current.fit(null, 40);
-        cyRef.current.center();
-      }, 100);
+        if (cyRef.current) {
+          const allNodes = cyRef.current.nodes();
+          allNodes.forEach(node => {
+            const nodeData = node.data();
+            const hasImageClass = node.hasClass('has-image');
+            if (nodeData.image) {
+              console.log(`Cytoscape Node ${nodeData.id}:`, {
+                image: nodeData.image,
+                hasImageClass,
+                classes: node.classes()
+              });
+            }
+          });
+        }
+      }, 500);
     }
   }, [elements]);
 
-  // Re-fit graph when current step changes
+  // Reset zoom flag when navigation data changes
   useEffect(() => {
-    if (cyRef.current && elements.length > 0) {
+    hasInitialZoomed.current = false;
+  }, [navigationData]);
+
+  // Auto-select first node when navigation data loads
+  useEffect(() => {
+    if (steps.length > 0 && onNodeSelect && currentStepIndex === 0) {
+      const step = steps[0];
+      const nodeData = {
+        id: step.locationId,
+        label: step.location?.name || step.locationId,
+        type: step.location?.type || 'location',
+        image: (() => {
+          const locationImages = step.location?.images || [];
+          const rawUrl = locationImages.length > 0 
+            ? (locationImages[0].url || locationImages[0])
+            : '';
+          return rawUrl ? getProxiedImageUrl(rawUrl) : '';
+        })(),
+        description: step.location?.description,
+        building: step.location?.building,
+        floor: step.location?.floor,
+        step: step.step,
+        fullLocation: step.location
+      };
+      onNodeSelect(nodeData);
+    }
+  }, [navigationData, steps.length]); // Only when navigation data first loads
+
+  // Focus on current node when step changes (via Next/Previous buttons)
+  useEffect(() => {
+    if (cyRef.current && elements.length > 0 && hasInitialZoomed.current) {
+      // Only focus if initial zoom has already happened (prevents interference)
       const currentNode = cyRef.current.$(`node[step = ${currentStepIndex + 1}]`);
       if (currentNode.length > 0) {
-        // Optionally center on current node (commented out to keep full view)
-        // cyRef.current.animate({
-        //   center: { eles: currentNode },
-        //   zoom: 1.5
-        // }, { duration: 500 });
+        // Fit the current node in view (keeps it visible without necessarily centering)
+        cyRef.current.animate({
+          fit: {
+            eles: currentNode,
+            padding: 100
+          }
+        }, { 
+          duration: 600,
+          easing: 'ease-out'
+        });
       }
     }
   }, [currentStepIndex, elements]);
@@ -384,18 +507,113 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
   // Auto-animate through steps
   const nextStep = () => {
     if (currentStepIndex < steps.length - 1) {
-      setCurrentStepIndex(currentStepIndex + 1);
+      const newIndex = currentStepIndex + 1;
+      setCurrentStepIndex(newIndex);
+      // Update selected node in parent component
+      if (onNodeSelect && steps[newIndex]) {
+        const step = steps[newIndex];
+        const nodeData = {
+          id: step.locationId,
+          label: step.location?.name || step.locationId,
+          type: step.location?.type || 'location',
+          image: (() => {
+          const locationImages = step.location?.images || [];
+          const rawUrl = locationImages.length > 0 
+            ? (locationImages[0].url || locationImages[0])
+            : '';
+          return rawUrl ? getProxiedImageUrl(rawUrl) : '';
+        })(),
+          description: step.location?.description,
+          building: step.location?.building,
+          floor: step.location?.floor,
+          step: step.step,
+          fullLocation: step.location
+        };
+        onNodeSelect(nodeData);
+      }
     }
   };
 
   const prevStep = () => {
     if (currentStepIndex > 0) {
-      setCurrentStepIndex(currentStepIndex - 1);
+      const newIndex = currentStepIndex - 1;
+      setCurrentStepIndex(newIndex);
+      // Update selected node in parent component
+      if (onNodeSelect && steps[newIndex]) {
+        const step = steps[newIndex];
+        const nodeData = {
+          id: step.locationId,
+          label: step.location?.name || step.locationId,
+          type: step.location?.type || 'location',
+          image: (() => {
+          const locationImages = step.location?.images || [];
+          const rawUrl = locationImages.length > 0 
+            ? (locationImages[0].url || locationImages[0])
+            : '';
+          return rawUrl ? getProxiedImageUrl(rawUrl) : '';
+        })(),
+          description: step.location?.description,
+          building: step.location?.building,
+          floor: step.location?.floor,
+          step: step.step,
+          fullLocation: step.location
+        };
+        onNodeSelect(nodeData);
+      }
     }
   };
 
   const resetAnimation = () => {
     setCurrentStepIndex(0);
+    // Update selected node to first step
+    if (onNodeSelect && steps.length > 0) {
+      const step = steps[0];
+      const nodeData = {
+        id: step.locationId,
+        label: step.location?.name || step.locationId,
+        type: step.location?.type || 'location',
+        image: (() => {
+          const locationImages = step.location?.images || [];
+          const rawUrl = locationImages.length > 0 
+            ? (locationImages[0].url || locationImages[0])
+            : '';
+          return rawUrl ? getProxiedImageUrl(rawUrl) : '';
+        })(),
+        description: step.location?.description,
+        building: step.location?.building,
+        floor: step.location?.floor,
+        step: step.step,
+        fullLocation: step.location
+      };
+      onNodeSelect(nodeData);
+    }
+    // Zoom back to first 2 nodes when reset
+    if (cyRef.current && steps.length > 0) {
+      setTimeout(() => {
+        const nodesToShow = Math.min(2, steps.length);
+        const nodeIds = steps.slice(0, nodesToShow).map(s => s.locationId);
+        const nodeSelector = nodeIds.map(id => `node[id = "${id}"]`).join(', ');
+        const nodes = cyRef.current.$(nodeSelector);
+        
+        if (nodes.length > 0) {
+          const bbox = nodes.boundingBox();
+          const centerX = (bbox.x1 + bbox.x2) / 2;
+          const centerY = (bbox.y1 + bbox.y2) / 2;
+          const width = bbox.x2 - bbox.x1;
+          const height = bbox.y2 - bbox.y1;
+          const maxDim = Math.max(width, height, 200);
+          const containerWidth = cyRef.current.width();
+          const containerHeight = cyRef.current.height();
+          const targetSize = Math.min(containerWidth, containerHeight) * 0.5;
+          const zoom = Math.max(0.8, Math.min(targetSize / (maxDim + 150), 2));
+          
+          cyRef.current.animate({
+            center: { x: centerX, y: centerY },
+            zoom: zoom
+          }, { duration: 600, easing: 'ease-out' });
+        }
+      }, 100);
+    }
   };
 
   if (!navigationData || steps.length === 0) {
@@ -408,13 +626,13 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
     <div className="graph-visualization">
       <div className="graph-header">
         <div className="header-left">
-          <h3>Spatial Path Visualization</h3>
+          <h3>Path Visualization</h3>
           <p className="header-subtitle">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{display: 'inline', verticalAlign: 'middle', marginRight: '4px'}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{display: 'inline', verticalAlign: 'middle', marginRight: '4px'}}>
               <circle cx="12" cy="12" r="10" />
               <path d="M12 16v-4M12 8h.01" />
             </svg>
-            Click on any location node to view full details and images
+            Click nodes or use Next/Previous to navigate
           </p>
         </div>
         <div className="graph-legend">
@@ -515,102 +733,6 @@ function GraphVisualization({ navigationData, startLocation, endLocation }) {
           </svg>
         </button>
       </div>
-
-      <div className="current-step-info">
-        <div className="step-header-row">
-          <div className="step-badge">Step {currentStep.step}</div>
-          {currentStepIndex < steps.length - 1 && (
-            <div className={`direction-indicator ${extractDirection(steps[currentStepIndex + 1].instruction)}`}>
-              {extractDirection(steps[currentStepIndex + 1].instruction) === 'right' && (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 18l6-6-6-6" />
-                </svg>
-              )}
-              {extractDirection(steps[currentStepIndex + 1].instruction) === 'left' && (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M15 18l-6-6 6-6" />
-                </svg>
-              )}
-              {extractDirection(steps[currentStepIndex + 1].instruction) === 'straight' && (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 5v14M5 12l7-7 7 7" />
-                </svg>
-              )}
-              {extractDirection(steps[currentStepIndex + 1].instruction) === 'vertical' && (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <path d="M9 8v8M12 8v8M15 8v8" />
-                </svg>
-              )}
-              <span className="direction-text">
-                {extractDirection(steps[currentStepIndex + 1].instruction).replace('_', ' ')}
-              </span>
-            </div>
-          )}
-        </div>
-        <p className="step-instruction">{currentStep.instruction}</p>
-        <p className="step-meta">
-          {currentStep.location?.building && `${currentStep.location.building} • `}
-          {currentStep.distance > 0 && `${Math.round(currentStep.distance)}m`}
-        </p>
-      </div>
-
-      {/* Image Modal */}
-      {selectedNode && (
-        <div className="image-modal-overlay" onClick={() => setSelectedNode(null)}>
-          <div className="image-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setSelectedNode(null)}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-            
-            <div className="modal-content">
-              {selectedNode.image ? (
-                <img src={selectedNode.image} alt={selectedNode.label} className="modal-image" />
-              ) : (
-                <div className="modal-no-image">
-                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
-                    <path d="M21 15l-5-5L5 21" />
-                  </svg>
-                  <p>No image available</p>
-                </div>
-              )}
-              
-              <div className="modal-info">
-                <div className="modal-header">
-                  <h3>{selectedNode.label}</h3>
-                  {selectedNode.step && (
-                    <span className="modal-step-badge">Step {selectedNode.step}</span>
-                  )}
-                </div>
-                {selectedNode.description && <p className="modal-description">{selectedNode.description}</p>}
-                <div className="modal-details">
-                  {selectedNode.building && (
-                    <p className="modal-meta">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                      </svg>
-                      <strong>Building:</strong> {selectedNode.building}
-                      {selectedNode.floor !== undefined && ` • Floor: ${selectedNode.floor}`}
-                    </p>
-                  )}
-                  {selectedNode.type && (
-                    <p className="modal-meta">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                      </svg>
-                      <strong>Type:</strong> {selectedNode.type}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
