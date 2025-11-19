@@ -572,8 +572,12 @@ async function findNavigationPath(startId, endId) {
       }
     }
 
-    // Calculate estimated time (assuming average walking speed of 1.2 m/s)
-    const estimatedTimeSeconds = Math.ceil(totalDistance / 1.2);
+    // Calculate estimated time based on steps (more realistic for campus navigation)
+    // Each step represents a location transition, taking ~40 seconds on average
+    // This accounts for walking, orienting, reading signs, and brief pauses
+    const secondsPerStep = 40;
+    const numTransitions = Math.max(steps.length - 1, 1); // steps - 1 because first step is starting point
+    const estimatedTimeSeconds = numTransitions * secondsPerStep;
     const estimatedTimeMinutes = Math.ceil(estimatedTimeSeconds / 60);
     const estimatedTime = estimatedTimeMinutes === 0 ? '< 1 min' : `${estimatedTimeMinutes} min`;
 
