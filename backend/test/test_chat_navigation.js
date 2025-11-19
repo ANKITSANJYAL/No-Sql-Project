@@ -54,16 +54,16 @@ async function testEndpoint(name, url, method = 'GET', body = null) {
     const data = await response.json();
     
     if (response.ok) {
-      log('✓ SUCCESS', 'green');
+      log('SUCCESS', 'green');
       console.log(JSON.stringify(data, null, 2));
       return { success: true, data };
     } else {
-      log(`✗ FAILED (${response.status})`, 'red');
+      log(`FAILED (${response.status})`, 'red');
       console.log(JSON.stringify(data, null, 2));
       return { success: false, data };
     }
   } catch (error) {
-    log(`✗ ERROR: ${error.message}`, 'red');
+    log(`ERROR: ${error.message}`, 'red');
     return { success: false, error: error.message };
   }
 }
@@ -173,6 +173,6 @@ async function runTests() {
 
 // Run tests
 runTests().catch(error => {
-  log(`\n✗ Test suite failed: ${error.message}`, 'red');
+  log(`\nTest suite failed: ${error.message}`, 'red');
   process.exit(1);
 });

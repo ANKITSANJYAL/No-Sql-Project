@@ -9,7 +9,7 @@ async function seedNeo4j() {
     
     // Clear existing data
     await session.run('MATCH (n) DETACH DELETE n');
-    console.log('✓ Cleared existing graph data');
+    console.log('Cleared existing graph data');
     
     // Create Location Nodes - Actual Fordham Locations
     const locations = [
@@ -40,7 +40,7 @@ async function seedNeo4j() {
         loc
       );
     }
-    console.log(`✓ Created ${locations.length} location nodes`);
+    console.log(`Created ${locations.length} location nodes`);
     
     // Create Relationships (connections between locations)
     // Each connection includes forwardInstruction and reverseInstruction for bidirectional navigation
@@ -226,40 +226,17 @@ async function seedNeo4j() {
         conn
       );
     }
-    console.log(`✓ Created ${connections.length * 2} relationships (bidirectional)`);
+    console.log(`Created ${connections.length * 2} relationships (bidirectional)`);
     
     // Verify the graph
     const result = await session.run('MATCH (n) RETURN count(n) as nodeCount');
-    console.log(`\n✓ Total nodes in graph: ${result.records[0].get('nodeCount')}`);
+    console.log(`\nTotal nodes in graph: ${result.records[0].get('nodeCount')}`);
     
     const relResult = await session.run('MATCH ()-[r]->() RETURN count(r) as relCount');
-    console.log(`✓ Total relationships: ${relResult.records[0].get('relCount')}`);
-    
-    // Display sample paths
-    console.log('\n--- Sample Navigation Paths ---');
-    const paths = [
-      { start: 'main_entrance', end: 'quinn_library_entrance', name: 'Main Entrance → Library' },
-      { start: 'main_entrance', end: 'classroom', name: 'Main Entrance → Classroom' },
-      { start: 'main_entrance', end: 'ram_cafe', name: 'Main Entrance → Ram Café' }
-    ];
-    
-    for (const path of paths) {
-      const pathResult = await session.run(
-        `MATCH path = shortestPath(
-          (start:Location {id: $start})-[:CONNECTED_TO*]-(end:Location {id: $end})
-        )
-        RETURN length(path) as steps`,
-        { start: path.start, end: path.end }
-      );
-      
-      if (pathResult.records.length > 0) {
-        const steps = pathResult.records[0].get('steps').toNumber();
-        console.log(`  ✓ ${path.name}: ${steps} steps`);
-      }
-    }
+    console.log(`Total relationships: ${relResult.records[0].get('relCount')}`);
     
   } catch (error) {
-    console.error('✗ Error seeding Neo4j:', error);
+    console.error('Error seeding Neo4j:', error);
   } finally {
     await session.close();
     await closeDatabases();

@@ -388,15 +388,15 @@ async function seedMongoDB() {
     
     // Clear existing data
     await db.collection('locations').deleteMany({});
-    console.log('✓ Cleared existing locations');
+    console.log('Cleared existing locations');
     
     // Insert actual location data
     const result = await db.collection('locations').insertMany(actualLocations);
-    console.log(`✓ Inserted ${result.insertedCount} locations into MongoDB`);
+    console.log(`Inserted ${result.insertedCount} locations into MongoDB`);
     
     // Verify data
     const count = await db.collection('locations').countDocuments();
-    console.log(`✓ Total locations in database: ${count}`);
+    console.log(`Total locations in database: ${count}`);
     
     // Display some sample locations
     console.log('\nSample locations:');
@@ -410,7 +410,7 @@ async function seedMongoDB() {
     });
     
   } catch (error) {
-    console.error('✗ Error seeding MongoDB:', error);
+    console.error('Error seeding MongoDB:', error);
   } finally {
     await closeDatabases();
   }

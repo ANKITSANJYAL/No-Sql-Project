@@ -16,12 +16,12 @@ async function verifyDatabases() {
     const db = getMongoDb();
     
     const locationCount = await db.collection('locations').countDocuments();
-    console.log(`  ✓ Total locations: ${locationCount} ${locationCount === 19 ? '✓ CORRECT' : '✗ EXPECTED 19'}`);
+    console.log(`  Total locations: ${locationCount} ${locationCount === 19 ? 'CORRECT' : 'EXPECTED 19'}`);
     
     // Check if images exist in documents
     const locationsWithImages = await db.collection('locations')
       .countDocuments({ 'images.0.url': { $exists: true } });
-    console.log(`  ✓ Locations with images: ${locationsWithImages} ${locationsWithImages === 19 ? '✓ CORRECT' : '✗ EXPECTED 19'}`);
+    console.log(`  Locations with images: ${locationsWithImages} ${locationsWithImages === 19 ? 'CORRECT' : 'EXPECTED 19'}`);
     
     // Sample some locations
     const sampleLocations = await db.collection('locations')
@@ -46,12 +46,12 @@ async function verifyDatabases() {
       // Count nodes
       const nodeResult = await session.run('MATCH (n:Location) RETURN count(n) as count');
       const nodeCount = nodeResult.records[0].get('count').toNumber();
-      console.log(`  ✓ Total nodes: ${nodeCount} ${nodeCount === 19 ? '✓ CORRECT' : '✗ EXPECTED 19'}`);
+      console.log(`  Total nodes: ${nodeCount} ${nodeCount === 19 ? 'CORRECT' : 'EXPECTED 19'}`);
       
       // Count relationships
       const relResult = await session.run('MATCH ()-[r:CONNECTED_TO]->() RETURN count(r) as count');
       const relCount = relResult.records[0].get('count').toNumber();
-      console.log(`  ✓ Total relationships: ${relCount} ${relCount === 40 ? '✓ CORRECT' : '✗ EXPECTED 40'}`);
+      console.log(`  Total relationships: ${relCount} ${relCount === 40 ? 'CORRECT' : 'EXPECTED 40'}`);
       
       // Test critical navigation paths
       console.log('\n  Testing navigation paths:');
@@ -76,13 +76,13 @@ async function verifyDatabases() {
           if (pathResult.records.length > 0) {
             const steps = pathResult.records[0].get('steps').toNumber();
             const locations = pathResult.records[0].get('locationNames');
-            console.log(`    ✓ ${testPath.name}: ${steps} steps`);
+            console.log(`    ${testPath.name}: ${steps} steps`);
             console.log(`       Route: ${locations[0]} → ... → ${locations[locations.length - 1]}`);
           } else {
-            console.log(`    ✗ ${testPath.name}: NO PATH FOUND`);
+            console.log(`    ${testPath.name}: NO PATH FOUND`);
           }
         } catch (error) {
-          console.log(`    ✗ ${testPath.name}: ERROR - ${error.message}`);
+          console.log(`    ${testPath.name}: ERROR - ${error.message}`);
         }
       }
       
@@ -99,7 +99,7 @@ async function verifyDatabases() {
           console.log(`    - ${record.get('id')}: ${record.get('name')}`);
         });
       } else {
-        console.log('\n  ✓ No isolated nodes - all locations are connected');
+        console.log('\n  No isolated nodes - all locations are connected');
       }
       
     } finally {
@@ -124,7 +124,7 @@ async function verifyDatabases() {
     }
     
   } catch (error) {
-    console.error('\n✗ Verification failed:', error.message);
+    console.error('\nVerification failed:', error.message);
     console.error('\nMake sure:');
     console.error('  1. MongoDB is running (brew services list | grep mongodb)');
     console.error('  2. Neo4j is running (neo4j status)');
