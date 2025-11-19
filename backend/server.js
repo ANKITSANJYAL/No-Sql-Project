@@ -486,45 +486,144 @@ async function findNavigationPath(startId, endId) {
       };
     }
 
-    // Query Neo4j for shortest path with bidirectional instructions
-    const pathQuery = `
-      MATCH path = shortestPath(
-        (start:Location {id: $startId})-[:CONNECTED_TO*]-(end:Location {id: $endId})
-      )
-      RETURN 
-        [node in nodes(path) | node.id] as locationIds,
-        relationships(path) as rels,
-        [rel in relationships(path) | rel.distance] as distances,
-        reduce(total = 0, rel in relationships(path) | total + rel.distance) as totalDistance
-    `;
+    // Query Neo4j for shortest path using GDS Dijkstra's algorithm with weight-based pathfinding
+    // Create a temporary named graph, run Dijkstra, then clean up
+    const graphName = `temp_graph_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    let dijkstraResult;
+    
+    try {
+      // Create temporary graph projection with weight property
+      const createGraphQuery = `
+        CALL gds.graph.project(
+          $graphName,
+          'Location',
+          {
+            CONNECTED_TO: {
+              type: 'CONNECTED_TO',
+              properties: {
+                weight: {
+                  property: 'weight',
+                  defaultValue: 999999
+                }
+              }
+            }
+          }
+        )
+        YIELD graphName, nodeCount, relationshipCount
+      `;
+      
+      await session.run(createGraphQuery, { graphName });
+      
+      // Run Dijkstra's algorithm on the projected graph
+      const dijkstraQuery = `
+        MATCH (start:Location {id: $startId}), (end:Location {id: $endId})
+        CALL gds.shortestPath.dijkstra.stream($graphName, {
+          sourceNode: id(start),
+          targetNode: id(end),
+          relationshipWeightProperty: 'weight'
+        })
+        YIELD path, totalCost
+        WITH path, totalCost,
+             [node in nodes(path) | node.id] as nodeIds,
+             relationships(path) as pathRels
+        WHERE size(pathRels) > 0
+        WITH nodeIds, pathRels, totalCost,
+             [i in range(0, size(pathRels) - 1) | {
+               rel: pathRels[i],
+               startNodeId: nodeIds[i],
+               endNodeId: nodeIds[i + 1]
+             }] as relInfo
+        RETURN 
+          nodeIds as locationIds, 
+          [info in relInfo | info.rel] as rels,
+          [info in relInfo | info.startNodeId] as relStartIds,
+          [info in relInfo | info.endNodeId] as relEndIds,
+          totalCost as totalWeight
+        ORDER BY totalCost ASC
+        LIMIT 1
+      `;
 
-    const pathResult = await session.run(pathQuery, { startId, endId });
+      dijkstraResult = await session.run(dijkstraQuery, { startId, endId, graphName });
+    } finally {
+      // Always clean up: drop the temporary graph
+      try {
+        await session.run(`CALL gds.graph.drop($graphName, false) YIELD graphName`, { graphName });
+      } catch (dropError) {
+        // Ignore errors when dropping graph (it might not exist or already dropped)
+        console.warn('Warning: Could not drop temporary graph:', dropError.message);
+      }
+    }
 
     // Check if path exists
-    if (pathResult.records.length === 0 || pathResult.records[0].get('locationIds').length === 0) {
+    if (dijkstraResult.records.length === 0) {
       throw { 
         status: 404, 
         message: `No path found between '${startLocation.name}' and '${endLocation.name}'` 
       };
     }
 
-    const locationIds = pathResult.records[0].get('locationIds');
-    const rels = pathResult.records[0].get('rels');
-    const distances = pathResult.records[0].get('distances');
-    const totalDistance = pathResult.records[0].get('totalDistance') || 0;
+    const record = dijkstraResult.records[0];
+    const locationIds = record.get('locationIds');
+    const rels = record.get('rels');
+    const relStartIds = record.get('relStartIds');
+    const relEndIds = record.get('relEndIds');
+    const totalWeight = record.get('totalWeight') || 0;
     
-    // Extract instructions based on traversal direction
-    // Use forwardInstruction if available (forward traversal), otherwise reverseInstruction (backward traversal)
-    const instructions = rels.map(rel => {
-      // Check which instruction property exists on the relationship
-      // forwardInstruction means the relationship is being traversed forward
-      // reverseInstruction means the relationship is being traversed backward
-      if (rel.properties.forwardInstruction) {
-        return rel.properties.forwardInstruction;
-      } else if (rel.properties.reverseInstruction) {
-        return rel.properties.reverseInstruction;
+    // Query Neo4j to get relationship properties (distance, weight, instructions) for each relationship
+    // When going from A to B: use forwardInstruction from (A)-[:CONNECTED_TO]->(B)
+    // When going from B to A: use reverseInstruction from (B)-[:CONNECTED_TO]->(A)
+    const relationshipPairs = relStartIds.map((startId, i) => [startId, relEndIds[i]]);
+    
+    // Query to get relationship properties (distance, weight, instructions) based on traversal direction
+    const relationshipQuery = `
+      UNWIND $pairs AS pair
+      OPTIONAL MATCH (start:Location {id: pair[0]})-[rel:CONNECTED_TO]->(end:Location {id: pair[1]})
+      WITH pair, rel.distance as distance, rel.weight as weight, rel.forwardInstruction as instruction
+      OPTIONAL MATCH (start2:Location {id: pair[0]})<-[rel2:CONNECTED_TO]-(end2:Location {id: pair[1]})
+      RETURN pair[0] as startId, pair[1] as endId, 
+             COALESCE(distance, rel2.distance, 0) as distance,
+             COALESCE(weight, rel2.weight, 0) as weight,
+             COALESCE(instruction, rel2.reverseInstruction) as instruction
+    `;
+    
+    const relationshipResult = await session.run(relationshipQuery, { pairs: relationshipPairs });
+    
+    // Create maps for relationship properties
+    const distanceMap = {};
+    const weightMap = {};
+    const instructionMap = {};
+    
+    relationshipResult.records.forEach(rec => {
+      const key = `${rec.get('startId')}->${rec.get('endId')}`;
+      const distance = rec.get('distance');
+      const weight = rec.get('weight');
+      const instruction = rec.get('instruction');
+      
+      if (distance !== null && distance !== undefined) {
+        distanceMap[key] = distance;
       }
-      return null; // Fallback if neither exists
+      if (weight !== null && weight !== undefined) {
+        weightMap[key] = weight;
+      }
+      if (instruction) {
+        instructionMap[key] = instruction;
+      }
+    });
+    
+    // Extract distances, weights, and instructions based on the maps
+    const distances = relStartIds.map((startId, i) => {
+      const endId = relEndIds[i];
+      const key = `${startId}->${endId}`;
+      return distanceMap[key] || weightMap[key] || 0;
+    });
+    
+    const totalDistance = distances.reduce((total, dist) => total + dist, 0);
+    
+    const instructions = relStartIds.map((startId, i) => {
+      const endId = relEndIds[i];
+      const key = `${startId}->${endId}`;
+      return instructionMap[key] || null;
     });
 
     // Fetch all location details from MongoDB in batch (reusing same logic as batch endpoint)
