@@ -42,6 +42,34 @@ async function seedNeo4j() {
     }
     console.log(`Created ${locations.length} location nodes`);
     
+    // Create Neo4j Indexes for optimal query performance
+    console.log('\n=== CREATING NEO4J INDEXES ===\n');
+    
+    try {
+      // 1. Index on Location.id (most important - used in all pathfinding queries)
+      await session.run(
+        `CREATE INDEX location_id_index IF NOT EXISTS FOR (n:Location) ON (n.id)`
+      );
+      console.log('✓ Created index on Location.id (most important for pathfinding)');
+      
+      // 2. Index on Location.type (for filtering locations by type)
+      await session.run(
+        `CREATE INDEX location_type_index IF NOT EXISTS FOR (n:Location) ON (n.type)`
+      );
+      console.log('✓ Created index on Location.type (for type-based filtering)');
+      
+      // 3. Composite index on Location.building and Location.floor
+      await session.run(
+        `CREATE INDEX location_building_floor_index IF NOT EXISTS FOR (n:Location) ON (n.building, n.floor)`
+      );
+      console.log('✓ Created composite index on Location.building + Location.floor (for building/floor queries)');
+      
+      console.log('\nAll indexes created successfully!');
+    } catch (error) {
+      console.error('Warning: Error creating indexes:', error.message);
+      console.error('Indexes may already exist or there was a configuration issue.');
+    }
+    
     // Create Relationships (connections between locations)
     // Each connection includes forwardInstruction and reverseInstruction for bidirectional navigation
     const connections = [
@@ -227,13 +255,7 @@ async function seedNeo4j() {
       );
     }
     console.log(`Created ${connections.length * 2} relationships (bidirectional)`);
-    
-    // Verify the graph
-    const result = await session.run('MATCH (n) RETURN count(n) as nodeCount');
-    console.log(`\nTotal nodes in graph: ${result.records[0].get('nodeCount')}`);
-    
-    const relResult = await session.run('MATCH ()-[r]->() RETURN count(r) as relCount');
-    console.log(`Total relationships: ${relResult.records[0].get('relCount')}`);
+    console.log('\nNeo4j seeding completed!');
     
   } catch (error) {
     console.error('Error seeding Neo4j:', error);
