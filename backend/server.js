@@ -486,14 +486,14 @@ async function findNavigationPath(startId, endId) {
       };
     }
 
-    // Query Neo4j for shortest path
+    // Query Neo4j for shortest path with bidirectional instructions
     const pathQuery = `
       MATCH path = shortestPath(
         (start:Location {id: $startId})-[:CONNECTED_TO*]-(end:Location {id: $endId})
       )
       RETURN 
         [node in nodes(path) | node.id] as locationIds,
-        [rel in relationships(path) | rel.instructions] as instructions,
+        relationships(path) as rels,
         [rel in relationships(path) | rel.distance] as distances,
         reduce(total = 0, rel in relationships(path) | total + rel.distance) as totalDistance
     `;
@@ -509,9 +509,23 @@ async function findNavigationPath(startId, endId) {
     }
 
     const locationIds = pathResult.records[0].get('locationIds');
-    const instructions = pathResult.records[0].get('instructions');
+    const rels = pathResult.records[0].get('rels');
     const distances = pathResult.records[0].get('distances');
     const totalDistance = pathResult.records[0].get('totalDistance') || 0;
+    
+    // Extract instructions based on traversal direction
+    // Use forwardInstruction if available (forward traversal), otherwise reverseInstruction (backward traversal)
+    const instructions = rels.map(rel => {
+      // Check which instruction property exists on the relationship
+      // forwardInstruction means the relationship is being traversed forward
+      // reverseInstruction means the relationship is being traversed backward
+      if (rel.properties.forwardInstruction) {
+        return rel.properties.forwardInstruction;
+      } else if (rel.properties.reverseInstruction) {
+        return rel.properties.reverseInstruction;
+      }
+      return null; // Fallback if neither exists
+    });
 
     // Fetch all location details from MongoDB in batch (reusing same logic as batch endpoint)
     const locationDetails = await db.collection('locations')
@@ -556,7 +570,8 @@ async function findNavigationPath(startId, endId) {
         });
       } else {
         // Subsequent steps with navigation instructions
-        const instruction = instructions[i - 1] || `Continue to ${location.name}`;
+        // Use the instruction from the relationship, or fallback to a generic message
+        const instruction = instructions[i - 1] ;
         const stepDistance = distances[i - 1] || 0;
         cumulativeDistance += stepDistance;
 
