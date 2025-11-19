@@ -164,7 +164,7 @@ const actualLocations = [
     }
   },
   {
-    _id: "second_floor_junction",
+    _id: "plaza_indoor_junction",
     name: "Second Floor Junction",
     description: "Main junction on second floor after stepping off escalator and turning left. Plaza Gate on left, Elevators on right, Ram Café straight ahead",
     building: "Leon Lowenstein Building",
@@ -204,7 +204,7 @@ const actualLocations = [
     }
   },
   {
-    _id: "elevator_area",
+    _id: "plaza_elevator_area",
     name: "Elevator Area",
     description: "Elevator bank with dark gray doors, information boards posted on center panel, tile flooring, provides vertical access between floors",
     building: "Leon Lowenstein Building",
