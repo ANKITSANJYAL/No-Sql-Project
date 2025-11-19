@@ -50,19 +50,19 @@ async function seedNeo4j() {
       await session.run(
         `CREATE INDEX location_id_index IF NOT EXISTS FOR (n:Location) ON (n.id)`
       );
-      console.log('✓ Created index on Location.id (most important for pathfinding)');
+      console.log('Created index on Location.id (most important for pathfinding)');
       
       // 2. Index on Location.type (for filtering locations by type)
       await session.run(
         `CREATE INDEX location_type_index IF NOT EXISTS FOR (n:Location) ON (n.type)`
       );
-      console.log('✓ Created index on Location.type (for type-based filtering)');
+      console.log('Created index on Location.type (for type-based filtering)');
       
       // 3. Composite index on Location.building and Location.floor
       await session.run(
         `CREATE INDEX location_building_floor_index IF NOT EXISTS FOR (n:Location) ON (n.building, n.floor)`
       );
-      console.log('✓ Created composite index on Location.building + Location.floor (for building/floor queries)');
+      console.log('Created composite index on Location.building + Location.floor (for building/floor queries)');
       
       console.log('\nAll indexes created successfully!');
     } catch (error) {
