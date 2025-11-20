@@ -394,20 +394,89 @@ async function seedMongoDB() {
     const result = await db.collection('locations').insertMany(actualLocations);
     console.log(`Inserted ${result.insertedCount} locations into MongoDB`);
     
-    // Verify data
-    const count = await db.collection('locations').countDocuments();
-    console.log(`Total locations in database: ${count}`);
+    // Create indexes after inserting data
+    console.log('\n=== CREATING INDEXES ===\n');
+    const collection = db.collection('locations');
     
-    // Display some sample locations
-    console.log('\nSample locations:');
-    const samples = await db.collection('locations')
-      .find({})
-      .limit(3)
-      .project({ _id: 1, name: 1, building: 1, floor: 1 })
-      .toArray();
-    samples.forEach(loc => {
-      console.log(`  - ${loc.name} (${loc.building}, Floor ${loc.floor})`);
-    });
+    try {
+      // 1. Compound index on building and floor
+      await collection.createIndex(
+        { building: 1, floor: 1 },
+        { name: 'building_floor_1' }
+      );
+      console.log('Created index: building + floor');
+    } catch (error) {
+      if (error.code !== 85 && error.code !== 86) {
+        console.error('Error creating building + floor index:', error.message);
+      }
+    }
+
+    // 2. Text index on name and description (name weighted higher)
+    try {
+      const existingIndexes = await collection.indexes();
+      const existingTextIndex = existingIndexes.find(idx => 
+        idx.key && Object.keys(idx.key).some(k => idx.key[k] === 'text')
+      );
+      
+      if (existingTextIndex) {
+        await collection.dropIndex(existingTextIndex.name);
+      }
+
+      await collection.createIndex(
+        { name: 'text', description: 'text' },
+        { 
+          name: 'name_description_text',
+          weights: { name: 10, description: 1 },
+          default_language: 'english'
+        }
+      );
+      console.log('Created text index: name (weight: 10) + description (weight: 1)');
+    } catch (error) {
+      if (error.code !== 85 && error.code !== 86) {
+        console.error('Error creating text index:', error.message);
+      }
+    }
+
+    // 3. Single field index on type
+    try {
+      await collection.createIndex(
+        { type: 1 },
+        { name: 'type_1' }
+      );
+      console.log('Created index: type');
+    } catch (error) {
+      if (error.code !== 85 && error.code !== 86) {
+        console.error('Error creating type index:', error.message);
+      }
+    }
+
+    // 4. Compound index on building and type
+    try {
+      await collection.createIndex(
+        { building: 1, type: 1 },
+        { name: 'building_type_1' }
+      );
+      console.log('Created index: building + type');
+    } catch (error) {
+      if (error.code !== 85 && error.code !== 86) {
+        console.error('Error creating building + type index:', error.message);
+      }
+    }
+
+    // 5. Array index on amenities
+    try {
+      await collection.createIndex(
+        { amenities: 1 },
+        { name: 'amenities_1' }
+      );
+      console.log('Created index: amenities');
+    } catch (error) {
+      if (error.code !== 85 && error.code !== 86) {
+        console.error('Error creating amenities index:', error.message);
+      }
+    }
+    
+    console.log('\nMongoDB seeding completed!');
     
   } catch (error) {
     console.error('Error seeding MongoDB:', error);
