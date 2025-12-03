@@ -69,6 +69,31 @@ export default function ChatPage() {
                     Step by Step
                   </button>
                 </div>
+
+                {/* Show optimization info if waypoints were used */}
+                {navigationData?.waypointsUsed && navigationData?.optimization && (
+                  <div className="optimization-notice">
+                    <div className="optimization-icon">✨</div>
+                    <div className="optimization-content">
+                      <strong>AI-Powered Route Optimization</strong>
+                      <p>
+                        The AI detected {navigationData.optimization.waypointsProvided} intermediate stop(s) 
+                        and optimized the route by checking {navigationData.optimization.totalPermutationsChecked} possible paths.
+                      </p>
+                      {navigationData.optimization.routeSequence && (
+                        <div className="route-sequence">
+                          <strong>Optimal order:</strong>
+                          {navigationData.optimization.routeSequence.map((loc, idx) => (
+                            <span key={idx}>
+                              {idx > 0 && ' → '}
+                              {loc.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 {viewMode === 'graph' ? (
                   <GraphVisualization 

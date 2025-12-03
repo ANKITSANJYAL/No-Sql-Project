@@ -5,6 +5,8 @@ const https = require('https');
 const http = require('http');
 const { connectDatabases, getMongoDb, neo4jDriver } = require('./config/database');
 const { parseNavigationIntent } = require('./services/llmService');
+const metricsService = require('./services/metricsService');
+const dataValidationService = require('./services/dataValidationService');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -486,89 +488,50 @@ async function findNavigationPath(startId, endId) {
       };
     }
 
-    // Query Neo4j for shortest path using GDS Dijkstra's algorithm with weight-based pathfinding
-    // Create a temporary named graph, run Dijkstra, then clean up
-    const graphName = `temp_graph_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    let dijkstraResult;
-    
-    try {
-      // Create temporary graph projection with weight property
-      const createGraphQuery = `
-        CALL gds.graph.project(
-          $graphName,
-          'Location',
-          {
-            CONNECTED_TO: {
-              type: 'CONNECTED_TO',
-              properties: {
-                weight: {
-                  property: 'weight',
-                  defaultValue: 999999
-                }
-              }
-            }
-          }
-        )
-        YIELD graphName, nodeCount, relationshipCount
-      `;
-      
-      await session.run(createGraphQuery, { graphName });
-      
-      // Run Dijkstra's algorithm on the projected graph
-      const dijkstraQuery = `
-        MATCH (start:Location {id: $startId}), (end:Location {id: $endId})
-        CALL gds.shortestPath.dijkstra.stream($graphName, {
-          sourceNode: id(start),
-          targetNode: id(end),
-          relationshipWeightProperty: 'weight'
-        })
-        YIELD path, totalCost
-        WITH path, totalCost,
-             [node in nodes(path) | node.id] as nodeIds,
-             relationships(path) as pathRels
-        WHERE size(pathRels) > 0
-        WITH nodeIds, pathRels, totalCost,
-             [i in range(0, size(pathRels) - 1) | {
-               rel: pathRels[i],
-               startNodeId: nodeIds[i],
-               endNodeId: nodeIds[i + 1]
-             }] as relInfo
-        RETURN 
-          nodeIds as locationIds, 
-          [info in relInfo | info.rel] as rels,
-          [info in relInfo | info.startNodeId] as relStartIds,
-          [info in relInfo | info.endNodeId] as relEndIds,
-          totalCost as totalWeight
-        ORDER BY totalCost ASC
-        LIMIT 1
-      `;
+    // Query Neo4j for shortest weighted path
+    // Strategy: Use allShortestPaths (memory efficient) to get paths with minimum hops,
+    // then select the one with the lowest total weight
+    const pathQuery = `
+      MATCH (start:Location {id: $startId}), (end:Location {id: $endId})
+      MATCH path = allShortestPaths((start)-[:CONNECTED_TO*..15]-(end))
+      WITH path, 
+           relationships(path) as pathRels,
+           reduce(totalWeight = 0, r in relationships(path) | totalWeight + coalesce(r.weight, 1)) as pathWeight
+      ORDER BY pathWeight ASC, length(path) ASC
+      LIMIT 1
+      WITH path, pathWeight,
+           [node in nodes(path) | node.id] as locationIds,
+           pathRels
+      WHERE size(pathRels) > 0
+      WITH locationIds, pathRels, pathWeight,
+           [i in range(0, size(pathRels) - 1) | {
+             rel: pathRels[i],
+             startNodeId: locationIds[i],
+             endNodeId: locationIds[i + 1]
+           }] as relInfo
+      RETURN 
+        locationIds, 
+        [info in relInfo | info.rel] as rels,
+        [info in relInfo | info.startNodeId] as relStartIds,
+        [info in relInfo | info.endNodeId] as relEndIds,
+        pathWeight as totalWeight
+    `;
 
-      dijkstraResult = await session.run(dijkstraQuery, { startId, endId, graphName });
-    } finally {
-      // Always clean up: drop the temporary graph
-      try {
-        await session.run(`CALL gds.graph.drop($graphName, false) YIELD graphName`, { graphName });
-      } catch (dropError) {
-        // Ignore errors when dropping graph (it might not exist or already dropped)
-        console.warn('Warning: Could not drop temporary graph:', dropError.message);
-      }
-    }
+    const pathResult = await session.run(pathQuery, { startId, endId });
 
     // Check if path exists
-    if (dijkstraResult.records.length === 0) {
+    if (pathResult.records.length === 0) {
       throw { 
         status: 404, 
         message: `No path found between '${startLocation.name}' and '${endLocation.name}'` 
       };
     }
 
-    const record = dijkstraResult.records[0];
+    const record = pathResult.records[0];
     const locationIds = record.get('locationIds');
     const rels = record.get('rels');
     const relStartIds = record.get('relStartIds');
     const relEndIds = record.get('relEndIds');
-    const totalWeight = record.get('totalWeight') || 0;
     
     // Query Neo4j to get relationship properties (distance, weight, instructions) for each relationship
     // When going from A to B: use forwardInstruction from (A)-[:CONNECTED_TO]->(B)
@@ -741,7 +704,12 @@ app.get('/api/navigate', async (req, res) => {
     const endId = end.trim();
 
     // Find path using helper function
+    const startTime = Date.now();
     const pathData = await findNavigationPath(startId, endId);
+    const duration = Date.now() - startTime;
+    
+    // Record metrics for manual navigation
+    metricsService.recordNavigationQuery(startId, endId, true, duration);
     
     res.status(200).json({
       success: true,
@@ -749,6 +717,11 @@ app.get('/api/navigate', async (req, res) => {
     });
 
   } catch (error) {
+    // Record failed navigation
+    const startId = req.query.start?.trim() || 'unknown';
+    const endId = req.query.end?.trim() || 'unknown';
+    metricsService.recordNavigationQuery(startId, endId, false, null, error.message);
+    
     if (error.status) {
       return res.status(error.status).json({
         error: error.status === 404 ? 'Not Found' : 'Bad Request',
@@ -791,7 +764,12 @@ app.post('/api/navigate', async (req, res) => {
     const endId = end.trim();
 
     // Find path using helper function
+    const startTime = Date.now();
     const pathData = await findNavigationPath(startId, endId);
+    const duration = Date.now() - startTime;
+    
+    // Record metrics
+    metricsService.recordNavigationQuery(startId, endId, true, duration);
     
     res.status(200).json({
       success: true,
@@ -799,6 +777,11 @@ app.post('/api/navigate', async (req, res) => {
     });
 
   } catch (error) {
+    // Record failed navigation
+    const startId = req.body.start?.trim() || 'unknown';
+    const endId = req.body.end?.trim() || 'unknown';
+    metricsService.recordNavigationQuery(startId, endId, false, null, error.message);
+    
     if (error.status) {
       return res.status(error.status).json({
         error: error.status === 404 ? 'Not Found' : 'Bad Request',
@@ -812,6 +795,181 @@ app.post('/api/navigate', async (req, res) => {
     });
   }
 });
+
+/**
+ * POST /api/navigate/optimal
+ * Find optimal navigation path through multiple waypoints
+ * Request body: { start: "locationId", waypoints: ["id1", "id2"], end: "locationId" }
+ * This endpoint calculates all possible permutations and finds the shortest total path
+ */
+app.post('/api/navigate/optimal', async (req, res) => {
+  try {
+    const { start, waypoints, end } = req.body;
+
+    // Validate input
+    if (!start || typeof start !== 'string' || start.trim() === '') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Start location ID is required'
+      });
+    }
+
+    if (!end || typeof end !== 'string' || end.trim() === '') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'End location ID is required'
+      });
+    }
+
+    const startId = start.trim();
+    const endId = end.trim();
+    const waypointIds = Array.isArray(waypoints) ? waypoints.map(w => w.trim()).filter(Boolean) : [];
+
+    // If no waypoints, just use direct path
+    if (waypointIds.length === 0) {
+      const startTime = Date.now();
+      const pathData = await findNavigationPath(startId, endId);
+      const duration = Date.now() - startTime;
+      metricsService.recordNavigationQuery(startId, endId, true, duration);
+      
+      return res.status(200).json({
+        success: true,
+        ...pathData,
+        optimization: {
+          waypointsProvided: 0,
+          optimalOrder: [],
+          totalPermutationsChecked: 0
+        }
+      });
+    }
+
+    // Generate all permutations of waypoints to find optimal order
+    const permutations = getPermutations(waypointIds);
+    let bestPath = null;
+    let bestDistance = Infinity;
+    let bestOrder = null;
+
+    // Try each permutation
+    for (const permutation of permutations) {
+      try {
+        const fullRoute = [startId, ...permutation, endId];
+        let totalDistance = 0;
+        let isValidRoute = true;
+
+        // Calculate total distance for this permutation
+        for (let i = 0; i < fullRoute.length - 1; i++) {
+          const segmentStart = fullRoute[i];
+          const segmentEnd = fullRoute[i + 1];
+          
+          // Get path for this segment
+          const segmentPath = await findNavigationPath(segmentStart, segmentEnd);
+          totalDistance += segmentPath.totalDistance;
+        }
+
+        // Check if this is the best route so far
+        if (totalDistance < bestDistance) {
+          bestDistance = totalDistance;
+          bestOrder = permutation;
+        }
+      } catch (err) {
+        // This permutation failed, skip it
+        console.warn(`Permutation ${permutation.join(' -> ')} failed:`, err.message);
+        continue;
+      }
+    }
+
+    // If no valid path found
+    if (!bestOrder) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'No valid path found through all waypoints'
+      });
+    }
+
+    // Build the complete optimal path
+    const optimalRoute = [startId, ...bestOrder, endId];
+    const pathSegments = [];
+    let cumulativeDistance = 0;
+
+    for (let i = 0; i < optimalRoute.length - 1; i++) {
+      const segmentStart = optimalRoute[i];
+      const segmentEnd = optimalRoute[i + 1];
+      const segmentPath = await findNavigationPath(segmentStart, segmentEnd);
+      
+      // Skip the first step of subsequent segments (duplicate location)
+      const stepsToAdd = i > 0 ? segmentPath.steps.slice(1) : segmentPath.steps;
+      pathSegments.push(...stepsToAdd);
+    }
+
+    // Renumber steps and recalculate cumulative distances
+    cumulativeDistance = 0;
+    pathSegments.forEach((step, index) => {
+      step.step = index + 1;
+      if (index > 0) {
+        cumulativeDistance += step.distance || 0;
+      }
+      step.cumulativeDistance = cumulativeDistance;
+    });
+
+    // Calculate estimated time
+    const totalSeconds = Math.ceil(cumulativeDistance / 1.2);
+    const totalMinutes = Math.ceil(totalSeconds / 60);
+    const estimatedTime = totalMinutes === 0 ? '< 1 min' : `${totalMinutes} min`;
+
+    // Record metrics
+    const duration = Date.now();
+    metricsService.recordNavigationQuery(startId, endId, true, duration);
+
+    res.status(200).json({
+      success: true,
+      start: startId,
+      end: endId,
+      path: pathSegments.map(s => s.locationId),
+      totalDistance: cumulativeDistance,
+      estimatedTime: estimatedTime,
+      steps: pathSegments,
+      metadata: {
+        startLocation: pathSegments[0]?.location,
+        endLocation: pathSegments[pathSegments.length - 1]?.location,
+        totalSteps: pathSegments.length,
+        generatedAt: new Date().toISOString()
+      },
+      optimization: {
+        waypointsProvided: waypointIds.length,
+        optimalOrder: bestOrder,
+        totalPermutationsChecked: permutations.length,
+        routeSequence: optimalRoute.map(id => {
+          const step = pathSegments.find(s => s.locationId === id);
+          return { id, name: step?.location?.name || id };
+        })
+      }
+    });
+
+  } catch (error) {
+    console.error('Error finding optimal navigation path:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to find optimal navigation path'
+    });
+  }
+});
+
+// Helper function to generate all permutations of an array
+function getPermutations(array) {
+  if (array.length === 0) return [[]];
+  if (array.length === 1) return [array];
+  
+  const result = [];
+  for (let i = 0; i < array.length; i++) {
+    const current = array[i];
+    const remaining = array.slice(0, i).concat(array.slice(i + 1));
+    const remainingPerms = getPermutations(remaining);
+    for (const perm of remainingPerms) {
+      result.push([current, ...perm]);
+    }
+  }
+  return result;
+}
 
 // ============================================================================
 // AI CHAT / LLM ENDPOINTS
@@ -919,10 +1077,15 @@ app.post('/api/chat/navigate', async (req, res) => {
       .toArray();
 
     const parsedIntent = await parseNavigationIntent(query, locations);
+    
+    // Record LLM parse attempt
+    const usedFallback = parsedIntent.model === 'fallback-parser';
+    const isAmbiguous = !parsedIntent.start?.id || !parsedIntent.end?.id;
+    metricsService.recordLLMParse(true, usedFallback, isAmbiguous, query);
 
     // Step 2: Validate that we have both start and end locations
     // If start or end are missing, return needsClarification so frontend can ask follow-ups
-    if (!parsedIntent.start?.id || !parsedIntent.end?.id) {
+    if (isAmbiguous) {
       return res.status(200).json({
         success: false,
         needsClarification: true,
@@ -932,16 +1095,128 @@ app.post('/api/chat/navigate', async (req, res) => {
     }
 
     // Step 3: Generate navigation path
+    // Check if waypoints are present and valid
+    const hasWaypoints = parsedIntent.waypoints && Array.isArray(parsedIntent.waypoints) && parsedIntent.waypoints.length > 0;
+    
+    if (hasWaypoints) {
+      // Use optimal waypoint routing
+      const waypointIds = parsedIntent.waypoints.map(w => w.id).filter(Boolean);
+      
+      if (waypointIds.length > 0) {
+        const startTime = Date.now();
+        
+        try {
+          // Generate all permutations to find optimal order
+          const permutations = getPermutations(waypointIds);
+          let bestDistance = Infinity;
+          let bestOrder = null;
+
+          // Try each permutation
+          for (const permutation of permutations) {
+            try {
+              const fullRoute = [parsedIntent.start.id, ...permutation, parsedIntent.end.id];
+              let totalDistance = 0;
+
+              // Calculate total distance for this permutation
+              for (let i = 0; i < fullRoute.length - 1; i++) {
+                const segmentPath = await findNavigationPath(fullRoute[i], fullRoute[i + 1]);
+                totalDistance += segmentPath.totalDistance;
+              }
+
+              if (totalDistance < bestDistance) {
+                bestDistance = totalDistance;
+                bestOrder = permutation;
+              }
+            } catch (err) {
+              continue;
+            }
+          }
+
+          if (bestOrder) {
+            // Build the complete optimal path
+            const optimalRoute = [parsedIntent.start.id, ...bestOrder, parsedIntent.end.id];
+            const pathSegments = [];
+            let cumulativeDistance = 0;
+
+            for (let i = 0; i < optimalRoute.length - 1; i++) {
+              const segmentPath = await findNavigationPath(optimalRoute[i], optimalRoute[i + 1]);
+              const stepsToAdd = i > 0 ? segmentPath.steps.slice(1) : segmentPath.steps;
+              pathSegments.push(...stepsToAdd);
+            }
+
+            // Renumber steps
+            cumulativeDistance = 0;
+            pathSegments.forEach((step, index) => {
+              step.step = index + 1;
+              if (index > 0) {
+                cumulativeDistance += step.distance || 0;
+              }
+              step.cumulativeDistance = cumulativeDistance;
+            });
+
+            const totalSeconds = Math.ceil(cumulativeDistance / 1.2);
+            const totalMinutes = Math.ceil(totalSeconds / 60);
+            const estimatedTime = totalMinutes === 0 ? '< 1 min' : `${totalMinutes} min`;
+
+            const duration = Date.now() - startTime;
+            metricsService.recordNavigationQuery(parsedIntent.start.id, parsedIntent.end.id, true, duration);
+
+            return res.status(200).json({
+              success: true,
+              parsedIntent: parsedIntent,
+              navigation: {
+                start: parsedIntent.start.id,
+                end: parsedIntent.end.id,
+                path: pathSegments.map(s => s.locationId),
+                totalDistance: cumulativeDistance,
+                estimatedTime: estimatedTime,
+                steps: pathSegments,
+                metadata: {
+                  startLocation: pathSegments[0]?.location,
+                  endLocation: pathSegments[pathSegments.length - 1]?.location,
+                  totalSteps: pathSegments.length,
+                  generatedAt: new Date().toISOString()
+                }
+              },
+              optimization: {
+                waypointsProvided: waypointIds.length,
+                optimalOrder: bestOrder,
+                totalPermutationsChecked: permutations.length,
+                routeSequence: optimalRoute.map(id => {
+                  const step = pathSegments.find(s => s.locationId === id);
+                  return { id, name: step?.location?.name || id };
+                })
+              },
+              originalQuery: query,
+              waypointsUsed: true
+            });
+          }
+        } catch (err) {
+          console.warn('Waypoint optimization failed, falling back to direct path:', err.message);
+        }
+      }
+    }
+    
+    // No waypoints or waypoint routing failed - use direct path
+    const startTime = Date.now();
     const pathData = await findNavigationPath(parsedIntent.start.id, parsedIntent.end.id);
+    const duration = Date.now() - startTime;
+    
+    // Record successful navigation
+    metricsService.recordNavigationQuery(parsedIntent.start.id, parsedIntent.end.id, true, duration);
 
     res.status(200).json({
       success: true,
       parsedIntent: parsedIntent,
       navigation: pathData,
-      originalQuery: query
+      originalQuery: query,
+      waypointsUsed: false
     });
 
   } catch (error) {
+    // Record failed LLM parse
+    metricsService.recordLLMParse(false, false, false, req.body.query || '', error.message);
+    
     // Check if it's a rate limiting error
     if (error.message && (error.message.includes('rate-limited') || error.message.includes('429'))) {
       return res.status(503).json({
@@ -963,6 +1238,133 @@ app.post('/api/chat/navigate', async (req, res) => {
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to process navigation request',
+      details: error.message
+    });
+  }
+});
+
+// ============================================================================
+// EVALUATION & ADMIN ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/metrics
+ * Get current system metrics
+ */
+app.get('/api/metrics', (req, res) => {
+  try {
+    const metrics = metricsService.getMetrics();
+    res.status(200).json({
+      success: true,
+      data: metrics
+    });
+  } catch (error) {
+    console.error('Error getting metrics:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to retrieve metrics'
+    });
+  }
+});
+
+/**
+ * GET /api/metrics/export
+ * Export full metrics data (including raw data)
+ */
+app.get('/api/metrics/export', (req, res) => {
+  try {
+    const metricsExport = metricsService.exportMetrics();
+    res.status(200).json({
+      success: true,
+      data: metricsExport
+    });
+  } catch (error) {
+    console.error('Error exporting metrics:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to export metrics'
+    });
+  }
+});
+
+/**
+ * POST /api/metrics/reset
+ * Reset all metrics (useful for testing)
+ */
+app.post('/api/metrics/reset', (req, res) => {
+  try {
+    metricsService.reset();
+    res.status(200).json({
+      success: true,
+      message: 'Metrics have been reset'
+    });
+  } catch (error) {
+    console.error('Error resetting metrics:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to reset metrics'
+    });
+  }
+});
+
+/**
+ * GET /api/admin/validate
+ * Validate data synchronization between Neo4j and MongoDB
+ */
+app.get('/api/admin/validate', async (req, res) => {
+  try {
+    const validation = await dataValidationService.validateDataSync();
+    res.status(200).json({
+      success: true,
+      data: validation
+    });
+  } catch (error) {
+    console.error('Error validating data:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to validate data synchronization',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/admin/graph-stats
+ * Get statistics about the navigation graph
+ */
+app.get('/api/admin/graph-stats', async (req, res) => {
+  try {
+    const stats = await dataValidationService.getGraphStatistics();
+    res.status(200).json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('Error getting graph statistics:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to retrieve graph statistics',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/admin/test-navigation
+ * Test navigation accuracy with predefined test cases
+ */
+app.get('/api/admin/test-navigation', async (req, res) => {
+  try {
+    const testResults = await dataValidationService.testNavigationAccuracy();
+    res.status(200).json({
+      success: true,
+      data: testResults
+    });
+  } catch (error) {
+    console.error('Error testing navigation:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to test navigation accuracy',
       details: error.message
     });
   }

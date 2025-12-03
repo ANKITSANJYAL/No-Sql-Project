@@ -38,26 +38,57 @@ function GraphVisualization({ navigationData, startLocation, endLocation, onNode
     return 'straight';
   };
 
-  // Calculate spatial positions for nodes
+  // Calculate spatial positions for nodes with improved spacing
   const calculateSpatialPositions = () => {
     if (!steps || steps.length === 0) return {};
     
-    const STEP_DISTANCE = 200; // Base distance between nodes
-    const VERTICAL_OFFSET = 180; // Special offset for vertical movement
+    const STEP_DISTANCE = 280; // Increased base distance between nodes
+    const VERTICAL_OFFSET = 250; // Increased offset for vertical movement
+    const MIN_NODE_SPACING = 150; // Minimum spacing to prevent overlap
     
     const positions = {};
-    // Start at bottom center - y increases downward in screen coordinates
-    // Start with a positive y value so path flows upward (decreasing y)
-    // Calculate starting Y based on number of steps to ensure enough room
+    const usedPositions = []; // Track used positions for collision detection
+    
+    // Start at bottom center
     const estimatedPathHeight = steps.length * STEP_DISTANCE * 0.8;
-    let currentX = 0; // Center horizontally
-    let currentY = Math.max(300, estimatedPathHeight); // Start at bottom with enough room
-    // Angle system: 0° = up (north), 90° = right (east), 180° = down (south), 270° = left (west)
-    // Start facing upward (north)
+    let currentX = 0;
+    let currentY = Math.max(400, estimatedPathHeight);
     let currentAngle = 0; // 0 = up (north)
+    
+    // Helper function to check if position is too close to existing nodes
+    const isTooClose = (x, y) => {
+      return usedPositions.some(pos => {
+        const dx = pos.x - x;
+        const dy = pos.y - y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance < MIN_NODE_SPACING;
+      });
+    };
+    
+    // Helper function to find nearest free position
+    const findFreePosition = (targetX, targetY) => {
+      if (!isTooClose(targetX, targetY)) {
+        return { x: targetX, y: targetY };
+      }
+      
+      // Try positions in a spiral pattern
+      for (let radius = MIN_NODE_SPACING; radius < 500; radius += 50) {
+        for (let angle = 0; angle < 360; angle += 45) {
+          const radians = (angle * Math.PI) / 180;
+          const x = targetX + Math.cos(radians) * radius;
+          const y = targetY + Math.sin(radians) * radius;
+          if (!isTooClose(x, y)) {
+            return { x, y };
+          }
+        }
+      }
+      
+      return { x: targetX, y: targetY }; // Fallback
+    };
     
     // First node at bottom
     positions[steps[0].locationId] = { x: currentX, y: currentY };
+    usedPositions.push({ x: currentX, y: currentY });
     
     // Calculate positions based on directions
     for (let i = 1; i < steps.length; i++) {
@@ -65,36 +96,33 @@ function GraphVisualization({ navigationData, startLocation, endLocation, onNode
       const direction = extractDirection(instruction);
       const distance = steps[i].distance || STEP_DISTANCE;
       
-      // Normalize distance to pixels (assuming distance in meters)
-      const pixelDistance = Math.max(STEP_DISTANCE, Math.min(distance * 2, STEP_DISTANCE * 2));
+      // Normalize distance to pixels with better scaling
+      const pixelDistance = Math.max(STEP_DISTANCE, Math.min(distance * 50, STEP_DISTANCE * 2));
       
       if (direction === 'vertical') {
-        // For elevators/stairs, move upward (decrease y)
+        // For elevators/stairs, move upward with larger offset
         currentY -= VERTICAL_OFFSET;
-        // Slight horizontal offset to show vertical change
-        currentX += 30;
+        currentX += 40; // Slight horizontal offset
       } else if (direction === 'right') {
-        // Turn right (clockwise from current direction)
-        // In navigation: right turn means rotate clockwise
         currentAngle = (currentAngle + 90) % 360;
       } else if (direction === 'left') {
-        // Turn left (counter-clockwise from current direction)
         currentAngle = (currentAngle - 90 + 360) % 360;
       } else if (direction === 'back') {
-        // Turn around (180 degrees)
         currentAngle = (currentAngle + 180) % 360;
       }
-      // 'straight' doesn't change angle - continues in current direction
       
       // Calculate new position based on current angle
-      // Convert angle to radians and adjust for screen coordinates
-      // In screen coords: y increases downward, so up = -sin, down = +sin
       const radians = (currentAngle * Math.PI) / 180;
-      // For screen coordinates: 0° (up) = -y, 90° (right) = +x, 180° (down) = +y, 270° (left) = -x
-      currentX += Math.sin(radians) * pixelDistance; // sin(0°)=0, sin(90°)=1 (right), sin(180°)=0, sin(270°)=-1 (left)
-      currentY -= Math.cos(radians) * pixelDistance; // cos(0°)=1 (up), cos(90°)=0, cos(180°)=-1 (down), cos(270°)=0
+      let targetX = currentX + Math.sin(radians) * pixelDistance;
+      let targetY = currentY - Math.cos(radians) * pixelDistance;
+      
+      // Find free position if there's overlap
+      const freePos = findFreePosition(targetX, targetY);
+      currentX = freePos.x;
+      currentY = freePos.y;
       
       positions[steps[i].locationId] = { x: currentX, y: currentY };
+      usedPositions.push({ x: currentX, y: currentY });
     }
     
     return positions;
@@ -209,11 +237,19 @@ function GraphVisualization({ navigationData, startLocation, endLocation, onNode
         'label': 'data(label)',
         'text-valign': 'bottom',
         'text-halign': 'center',
-        'font-size': '10px',
-        'color': '#333',
+        'font-size': '9px',
+        'font-weight': 'bold',
+        'color': '#222',
         'text-wrap': 'wrap',
-        'text-max-width': '80px',
-        'text-margin-y': 5,
+        'text-max-width': '100px',
+        'text-margin-y': 8,
+        'text-background-color': 'rgba(255, 255, 255, 0.85)',
+        'text-background-opacity': 1,
+        'text-background-padding': '3px',
+        'text-background-shape': 'roundrectangle',
+        'text-border-width': 0.5,
+        'text-border-color': '#ddd',
+        'text-border-opacity': 0.5,
         'width': 45,
         'height': 45,
         'shape': 'ellipse'

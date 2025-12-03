@@ -234,3 +234,59 @@
 
 .manual-header h2 { margin-bottom:8px; }
 .manual-page .error { color:#a33; }
+
+/* Optimization Notice */
+.optimization-notice {
+	display: flex;
+	gap: 12px;
+	padding: 16px;
+	background: linear-gradient(135deg, #fff9e6 0%, #fff4d4 100%);
+	border: 2px solid #ffd700;
+	border-radius: 8px;
+	margin: 12px 0;
+	box-shadow: 0 2px 8px rgba(255, 215, 0, 0.2);
+}
+
+.optimization-icon {
+	font-size: 24px;
+	flex-shrink: 0;
+	line-height: 1;
+}
+
+.optimization-content {
+	flex: 1;
+}
+
+.optimization-content strong {
+	display: block;
+	color: var(--primary-color);
+	margin-bottom: 6px;
+	font-size: 15px;
+}
+
+.optimization-content p {
+	margin: 0 0 8px 0;
+	font-size: 14px;
+	color: #666;
+	line-height: 1.5;
+}
+
+.route-sequence {
+	font-size: 13px;
+	padding: 8px 12px;
+	background: white;
+	border-radius: 6px;
+	border: 1px solid #ffd700;
+	margin-top: 8px;
+}
+
+.route-sequence strong {
+	display: inline;
+	color: #333;
+	margin-right: 8px;
+	font-size: 13px;
+}
+
+.route-sequence span {
+	color: #555;
+}

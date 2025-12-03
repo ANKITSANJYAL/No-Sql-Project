@@ -41,67 +41,40 @@ export default function ManualPage() {
         if (data.success) setNavigationData(data);
         else setNavigationError(data.message || 'Navigation failed');
       } else {
-        // Chain navigation through waypoints
-        const allWaypoints = [...waypoints.map(wp => wp.id), endId];
-        const allNames = [...waypoints.map(wp => wp.name), endName];
-        const pathSegments = [];
-        let currentStart = startId;
-
-        // Navigate from start to first waypoint, then through each waypoint to destination
-        for (let i = 0; i < allWaypoints.length; i++) {
-          const currentEnd = allWaypoints[i];
-          const response = await fetch(`${API_ENDPOINTS.navigate}?start=${encodeURIComponent(currentStart)}&end=${encodeURIComponent(currentEnd)}`);
-          const text = await response.text();
-          let segmentData = null;
-          try {
-            segmentData = JSON.parse(text);
-          } catch (parseErr) {
-            throw new Error(`Navigation service returned unexpected response: ${text.slice(0, 200)}`);
-          }
-
-          if (!segmentData.success) {
-            throw new Error(segmentData.message || `Navigation failed from ${i === 0 ? startName : allNames[i - 1]} to ${allNames[i]}`);
-          }
-
-          // Skip the first step of subsequent segments (it's the same as the last step of previous segment)
-          const stepsToAdd = i > 0 ? segmentData.steps.slice(1) : segmentData.steps;
-          pathSegments.push(...stepsToAdd);
-          currentStart = currentEnd;
-        }
-
-        // Renumber all steps sequentially and recalculate cumulative distances
-        let cumulativeDistance = 0;
-        pathSegments.forEach((step, index) => {
-          step.step = index + 1;
-          if (index > 0) {
-            cumulativeDistance += step.distance || 0;
-          }
-          step.cumulativeDistance = cumulativeDistance;
+        // Use optimal routing endpoint for waypoints
+        const waypointIds = waypoints.map(wp => wp.id);
+        
+        const response = await fetch(API_ENDPOINTS.navigateOptimal, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            start: startId,
+            waypoints: waypointIds,
+            end: endId
+          })
         });
 
-        // Combine all segments into a single navigation result
-        const combinedData = {
-          success: true,
-          start: startId,
-          end: endId,
-          path: pathSegments.map(s => s.locationId),
-          totalDistance: pathSegments.reduce((sum, step) => sum + (step.distance || 0), 0),
-          estimatedTime: (() => {
-            const totalSeconds = Math.ceil(pathSegments.reduce((sum, step) => sum + (step.distance || 0), 0) / 1.2);
-            const totalMinutes = Math.ceil(totalSeconds / 60);
-            return totalMinutes === 0 ? '< 1 min' : `${totalMinutes} min`;
-          })(),
-          steps: pathSegments,
-          metadata: {
-            startLocation: pathSegments[0]?.location,
-            endLocation: pathSegments[pathSegments.length - 1]?.location,
-            totalSteps: pathSegments.length,
-            generatedAt: new Date().toISOString(),
-            waypoints: waypoints.map(wp => ({ id: wp.id, name: wp.name }))
-          }
-        };
+        const text = await response.text();
+        let data = null;
+        try {
+          data = JSON.parse(text);
+        } catch (parseErr) {
+          throw new Error(`Navigation service returned unexpected response: ${text.slice(0, 200)}`);
+        }
 
-        setNavigationData(combinedData);
+        if (data.success) {
+          // Add optimization info to metadata for display
+          setNavigationData({
+            ...data,
+            metadata: {
+              ...data.metadata,
+              waypoints: waypoints.map(wp => ({ id: wp.id, name: wp.name })),
+              optimization: data.optimization
+            }
+          });
+        } else {
+          setNavigationError(data.message || 'Optimal navigation failed');
+        }
       }
     } catch (err) {
       setNavigationError(err.message || 'Navigation failed');
@@ -153,6 +126,31 @@ export default function ManualPage() {
                     Step by Step
                   </button>
                 </div>
+
+                {/* Show optimization info if waypoints were used */}
+                {navigationData?.metadata?.optimization && (
+                  <div className="optimization-notice">
+                    <div className="optimization-icon">✨</div>
+                    <div className="optimization-content">
+                      <strong>Smart Route Optimization</strong>
+                      <p>
+                        Analyzed {navigationData.metadata.optimization.totalPermutationsChecked} possible routes 
+                        to find the shortest path through your {navigationData.metadata.optimization.waypointsProvided} waypoint(s).
+                      </p>
+                      {navigationData.metadata.optimization.routeSequence && (
+                        <div className="route-sequence">
+                          <strong>Optimal order:</strong>
+                          {navigationData.metadata.optimization.routeSequence.map((loc, idx) => (
+                            <span key={idx}>
+                              {idx > 0 && ' → '}
+                              {loc.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 {viewMode === 'graph' ? (
                   <GraphVisualization 

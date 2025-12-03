@@ -1,7 +1,15 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import '../styles/Header.css';
 
 function Header() {
+  const location = useLocation();
+  
+  // Hide header on admin login page
+  if (location.pathname === '/admin/login') {
+    return null;
+  }
+
   return (
     <header className="header">
       <div className="header-container">
@@ -32,6 +40,7 @@ function Header() {
           <a href="/" className="nav-link">Home</a>
           <a href="#about" className="nav-link">About</a>
           <a href="#help" className="nav-link">Help</a>
+          <a href="/admin" className="nav-link admin-link">🎓 Admin</a>
         </nav>
       </div>
     </header>

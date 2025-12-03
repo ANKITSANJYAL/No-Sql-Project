@@ -85,6 +85,20 @@
   background: var(--bg-secondary);
 }
 
+.nav-link.admin-link {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 20px;
+}
+
+.nav-link.admin-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  background: linear-gradient(135deg, #5568d3 0%, #6a3f91 100%);
+}
+
 @media (max-width: 768px) {
   .header-container {
     padding: 0 20px;

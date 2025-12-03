@@ -7,6 +7,7 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api
 export const API_ENDPOINTS = {
   // Navigation endpoints
   navigate: `${API_BASE_URL}/navigate`,
+  navigateOptimal: `${API_BASE_URL}/navigate/optimal`,
   
   // Location endpoints
   locations: `${API_BASE_URL}/locations`,

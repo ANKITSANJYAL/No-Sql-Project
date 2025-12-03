@@ -2,46 +2,16 @@ require('dotenv').config();
 
 /**
  * LLM Service for parsing natural language navigation queries
- * Uses OpenRouter API with free models (e.g., google/gemini-2.0-flash-thinking-exp:free)
+ * Uses OpenAI API with GPT-4o-mini (fast and cost-effective model)
  * Note: Node.js v18+ has native fetch support
  */
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-// Preferred models (try in order). Start with Mistral free model suggested by user.
-let MODEL = 'mistralai/mistral-small-3.2-24b-instruct:free';
-const FALLBACK_MODEL = 'google/gemini-2.0-flash-exp:free';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+// Using GPT-4o-mini - fast, affordable, and capable model
+const MODEL = 'gpt-4o-mini';
 
-// Model rotation list (will be augmented from remote discovery when needed)
-const MODEL_CANDIDATES = [MODEL, FALLBACK_MODEL];
-
-// Helper: fetch list of available models from OpenRouter and pick a candidate
-async function discoverModelCandidate() {
-  try {
-    const resp = await fetch('https://openrouter.ai/api/v1/models', {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${OPENROUTER_API_KEY}` }
-    });
-
-    if (!resp.ok) {
-      const err = await resp.text();
-      console.warn('Failed to fetch models from OpenRouter:', resp.status, err);
-      return null;
-    }
-
-    const md = await resp.json();
-    const ids = md.models?.map(m => m.id || m.name || '').filter(Boolean) || [];
-
-    // Prefer models with ':free' in the id, then any 'gpt' or 'llama' or 'gemini'
-    const freeCandidate = ids.find(id => id.toLowerCase().includes(':free'))
-      || ids.find(id => /gpt|llama|gemini|google/i.test(id));
-
-    return freeCandidate || ids[0] || null;
-  } catch (err) {
-    console.warn('Error discovering models from OpenRouter:', err.message || err);
-    return null;
-  }
-}
+// No model discovery needed for OpenAI - we use a single, reliable model
 
 /**
  * Build context-aware prompt with available locations
@@ -155,125 +125,153 @@ Response:
 {
   "start": {"id": null, "name": "Current Location", "confidence": 0.5},
   "end": {"id": "lowenstein_floor8_lobby", "name": "Lowenstein 8th Floor Lobby", "confidence": 0.8},
-  "waypoints": [],
+  "waypoints": [
+    {
+      "id": "lowenstein_cafeteria",
+      "name": "Lowenstein Cafeteria",
+      "reason": "Get coffee before going to 8th floor"
+    }
+  ],
   "intent": "Navigate to 8th floor with coffee stop",
   "activityType": "navigation"
 }
+
+EXAMPLE 4:
+User: "I'm at main entrance, need to grab lunch at the cafeteria then go to library"
+Response:
+{
+  "start": {"id": "lowenstein_entrance", "name": "Lowenstein Center Main Entrance", "confidence": 0.9},
+  "end": {"id": "lowenstein_library", "name": "Lowenstein Library", "confidence": 0.9},
+  "waypoints": [
+    {
+      "id": "lowenstein_cafeteria",
+      "name": "Lowenstein Cafeteria",
+      "reason": "Grab lunch before going to library"
+    }
+  ],
+  "intent": "Get lunch at cafeteria, then go to library to study",
+  "activityType": "navigation"
+}
+
+EXAMPLE 5:
+User: "take me to the classroom from main entrance, but I want to grab a coffee and book first"
+Response:
+{
+  "start": {"id": "lowenstein_entrance", "name": "Lowenstein Center Main Entrance", "confidence": 0.9},
+  "end": {"id": "lowenstein_ll817", "name": "Classroom LL-817", "confidence": 0.85},
+  "waypoints": [
+    {
+      "id": "lowenstein_cafeteria",
+      "name": "Lowenstein Cafeteria",
+      "reason": "Grab coffee"
+    },
+    {
+      "id": "lowenstein_library",
+      "name": "Lowenstein Library",
+      "reason": "Get book"
+    }
+  ],
+  "intent": "Navigate to classroom with stops at cafe and library",
+  "activityType": "navigation"
+}
+
+CRITICAL RULES FOR WAYPOINTS:
+- The END location is the FINAL destination (e.g., "classroom", "room 817")
+- WAYPOINTS are intermediate stops BEFORE reaching the end (e.g., "coffee", "book", "lunch")
+- Look for words like "first", "then", "before", "after", "stop by", "via", "through", "but I want to"
+- Extract ALL intermediate stops as separate waypoints
+- If user says "coffee AND book" or "coffee and book", create TWO waypoints
+- The system will optimize the ORDER of waypoints automatically to find shortest path
+- DO NOT put intermediate stops as the end location
 
 Now analyze the USER REQUEST and respond with JSON only:`;
 }
 
 /**
- * Call OpenRouter API to parse navigation intent
+ * Call OpenAI API to parse navigation intent
  * @param {string} userQuery - User's natural language query
  * @param {Array} locations - Available locations from database
  * @returns {Promise<Object>} Parsed intent
  */
 async function parseNavigationIntent(userQuery, locations) {
-  if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY === 'your_openrouter_api_key_here') {
-    console.warn('OpenRouter API key not configured. Using fallback parsing.');
+  if (!OPENAI_API_KEY || OPENAI_API_KEY === 'your_openai_api_key_here') {
+    console.warn('OpenAI API key not configured. Using fallback parsing.');
     return fallbackParser(userQuery, locations);
   }
 
   try {
     const prompt = buildNavigationPrompt(userQuery, locations);
-    // Helper to send a single OpenRouter request for a specific model
-    async function sendOpenRouterRequest(modelId) {
-      const resp = await fetch(OPENROUTER_API_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://ramsnavigator.fordham.edu',
-          'X-Title': 'RamsNavigator'
-        },
-        body: JSON.stringify({
-          model: modelId,
-          messages: [ { role: 'user', content: [ { type: 'text', text: prompt } ] } ],
-          temperature: 0.3,
-          max_tokens: 700
-        })
-      });
-
-      return resp;
-    }
-
-    // Try model candidates in order, with limited retries/backoff
-    const candidates = [...new Set([...MODEL_CANDIDATES])];
-
-    // Discover additional candidates if initial attempts fail
-    const discovered = await discoverModelCandidate();
-    if (discovered && !candidates.includes(discovered)) candidates.push(discovered);
-
-    let lastErr = null;
-    for (let i = 0; i < candidates.length; i++) {
-      const candidateModel = candidates[i];
-      try {
-        const resp = await sendOpenRouterRequest(candidateModel);
-        if (!resp.ok) {
-          const errText = await resp.text();
-          // Rate-limited: try next candidate after short backoff
-          if (resp.status === 429) {
-            console.warn(`Model ${candidateModel} rate-limited (429), trying next candidate after backoff`);
-            await new Promise(r => setTimeout(r, 1000 * (i + 1)));
-            lastErr = new Error(`OpenRouter retry error: 429 - ${errText}`);
-            continue; // try next model
+    
+    // Call OpenAI API
+    const resp = await fetch(OPENAI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
           }
-          // Invalid model id -> try discovery/next candidate
-          if (resp.status === 400 && /not a valid model id/i.test(errText)) {
-            console.warn('Invalid model id:', candidateModel);
-            lastErr = new Error(`Invalid model: ${candidateModel}`);
-            continue;
-          }
-          // Other errors: capture and try next
-          lastErr = new Error(`OpenRouter API error: ${resp.status} - ${errText}`);
-          continue;
-        }
+        ],
+        temperature: 0.3,
+        max_tokens: 700
+      })
+    });
 
-        // Successful response
-        const data = await resp.json();
-        let rawContent = data.choices?.[0]?.message?.content;
-        if (!rawContent) throw new Error('Empty response from LLM');
-
-        let llmResponse = '';
-        if (typeof rawContent === 'string') {
-          llmResponse = rawContent.trim();
-        } else if (Array.isArray(rawContent)) {
-          llmResponse = rawContent.map(part => {
-            if (typeof part === 'string') return part;
-            if (part.type === 'text' && part.text) return part.text;
-            if (part.type === 'image_url' && part.image_url && part.image_url.url) return `[image: ${part.image_url.url}]`;
-            return '';
-          }).join('\n').trim();
-        } else if (typeof rawContent === 'object' && rawContent.type === 'text' && rawContent.text) {
-          llmResponse = rawContent.text.trim();
-        } else {
-          throw new Error('Unsupported LLM response format');
-        }
-
-        // Extract JSON from codeblock if present
-        let jsonText = llmResponse;
-        if (jsonText.includes('```json')) {
-          jsonText = jsonText.split('```json')[1].split('```')[0].trim();
-        } else if (jsonText.includes('```')) {
-          jsonText = jsonText.split('```')[1].split('```')[0].trim();
-        }
-
-        const parsedIntent = JSON.parse(jsonText);
-        // Save chosen model for future requests
-        MODEL = candidateModel;
-
-        return { ...parsedIntent, rawQuery: userQuery, timestamp: new Date().toISOString(), model: MODEL };
-      } catch (err) {
-        console.warn('OpenRouter attempt failed for model', candidateModel, err.message || err);
-        lastErr = err;
-        // continue to next candidate
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error(`OpenAI API error: ${resp.status} - ${errText}`);
+      
+      // If rate limited or error, fall back to simple parsing
+      if (resp.status === 429) {
+        console.warn('OpenAI rate limit reached, using fallback parser');
       }
+      return fallbackParser(userQuery, locations);
     }
 
-    // If we exit loop without return, all candidates failed
-    console.error('All OpenRouter model attempts failed:', lastErr && lastErr.message);
-    throw lastErr || new Error('All OpenRouter attempts failed');
+    // Parse response
+    const data = await resp.json();
+    let rawContent = data.choices?.[0]?.message?.content;
+    
+    if (!rawContent) {
+      throw new Error('Empty response from OpenAI');
+    }
+
+    let llmResponse = '';
+    if (typeof rawContent === 'string') {
+      llmResponse = rawContent.trim();
+    } else if (Array.isArray(rawContent)) {
+      llmResponse = rawContent.map(part => {
+        if (typeof part === 'string') return part;
+        if (part.type === 'text' && part.text) return part.text;
+        return '';
+      }).join('\n').trim();
+    } else if (typeof rawContent === 'object' && rawContent.type === 'text' && rawContent.text) {
+      llmResponse = rawContent.text.trim();
+    } else {
+      throw new Error('Unsupported LLM response format');
+    }
+
+    // Extract JSON from codeblock if present
+    let jsonText = llmResponse;
+    if (jsonText.includes('```json')) {
+      jsonText = jsonText.split('```json')[1].split('```')[0].trim();
+    } else if (jsonText.includes('```')) {
+      jsonText = jsonText.split('```')[1].split('```')[0].trim();
+    }
+
+    const parsedIntent = JSON.parse(jsonText);
+
+    return { 
+      ...parsedIntent, 
+      rawQuery: userQuery, 
+      timestamp: new Date().toISOString(), 
+      model: MODEL 
+    };
 
   } catch (error) {
     console.error('Error parsing with LLM:', error);
