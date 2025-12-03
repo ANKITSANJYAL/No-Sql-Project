@@ -488,190 +488,256 @@ async function findNavigationPath(startId, endId) {
       };
     }
 
-    // Query Neo4j for shortest weighted path
-    // Strategy: Use allShortestPaths (memory efficient) to get paths with minimum hops,
-    // then select the one with the lowest total weight
-    const pathQuery = `
-      MATCH (start:Location {id: $startId}), (end:Location {id: $endId})
-      MATCH path = allShortestPaths((start)-[:CONNECTED_TO*..15]-(end))
-      WITH path, 
-           relationships(path) as pathRels,
-           reduce(totalWeight = 0, r in relationships(path) | totalWeight + coalesce(r.weight, 1)) as pathWeight
-      ORDER BY pathWeight ASC, length(path) ASC
-      LIMIT 1
-      WITH path, pathWeight,
-           [node in nodes(path) | node.id] as locationIds,
-           pathRels
-      WHERE size(pathRels) > 0
-      WITH locationIds, pathRels, pathWeight,
-           [i in range(0, size(pathRels) - 1) | {
-             rel: pathRels[i],
-             startNodeId: locationIds[i],
-             endNodeId: locationIds[i + 1]
-           }] as relInfo
-      RETURN 
-        locationIds, 
-        [info in relInfo | info.rel] as rels,
-        [info in relInfo | info.startNodeId] as relStartIds,
-        [info in relInfo | info.endNodeId] as relEndIds,
-        pathWeight as totalWeight
-    `;
-
-    const pathResult = await session.run(pathQuery, { startId, endId });
-
-    // Check if path exists
-    if (pathResult.records.length === 0) {
-      throw { 
-        status: 404, 
-        message: `No path found between '${startLocation.name}' and '${endLocation.name}'` 
-      };
-    }
-
-    const record = pathResult.records[0];
-    const locationIds = record.get('locationIds');
-    const rels = record.get('rels');
-    const relStartIds = record.get('relStartIds');
-    const relEndIds = record.get('relEndIds');
+    // Use GDS Dijkstra's algorithm for weight-based shortest path finding
+    // First create a temporary named graph projection, then use it for pathfinding
+    const graphName = `temp_nav_graph_${Date.now()}`;
     
-    // Query Neo4j to get relationship properties (distance, weight, instructions) for each relationship
-    // When going from A to B: use forwardInstruction from (A)-[:CONNECTED_TO]->(B)
-    // When going from B to A: use reverseInstruction from (B)-[:CONNECTED_TO]->(A)
-    const relationshipPairs = relStartIds.map((startId, i) => [startId, relEndIds[i]]);
-    
-    // Query to get relationship properties (distance, weight, instructions) based on traversal direction
-    const relationshipQuery = `
-      UNWIND $pairs AS pair
-      OPTIONAL MATCH (start:Location {id: pair[0]})-[rel:CONNECTED_TO]->(end:Location {id: pair[1]})
-      WITH pair, rel.distance as distance, rel.weight as weight, rel.forwardInstruction as instruction
-      OPTIONAL MATCH (start2:Location {id: pair[0]})<-[rel2:CONNECTED_TO]-(end2:Location {id: pair[1]})
-      RETURN pair[0] as startId, pair[1] as endId, 
-             COALESCE(distance, rel2.distance, 0) as distance,
-             COALESCE(weight, rel2.weight, 0) as weight,
-             COALESCE(instruction, rel2.reverseInstruction) as instruction
-    `;
-    
-    const relationshipResult = await session.run(relationshipQuery, { pairs: relationshipPairs });
-    
-    // Create maps for relationship properties
-    const distanceMap = {};
-    const weightMap = {};
-    const instructionMap = {};
-    
-    relationshipResult.records.forEach(rec => {
-      const key = `${rec.get('startId')}->${rec.get('endId')}`;
-      const distance = rec.get('distance');
-      const weight = rec.get('weight');
-      const instruction = rec.get('instruction');
+    try {
+      // Create a temporary graph projection using Cypher
+      const createGraphQuery = `
+        CALL gds.graph.project.cypher(
+          $graphName,
+          'MATCH (n:Location) RETURN id(n) AS id',
+          'MATCH (a:Location)-[r:CONNECTED_TO]->(b:Location) RETURN id(a) AS source, id(b) AS target, coalesce(r.weight, 1.0) AS weight',
+          { validateRelationships: false }
+        )
+        YIELD graphName, nodeCount, relationshipCount
+        RETURN graphName, nodeCount, relationshipCount
+      `;
       
-      if (distance !== null && distance !== undefined) {
-        distanceMap[key] = distance;
+      await session.run(createGraphQuery, { graphName });
+      
+      // Now use the projected graph for Dijkstra's algorithm
+      const pathQuery = `
+        MATCH (start:Location {id: $startId}), (end:Location {id: $endId})
+        CALL gds.shortestPath.dijkstra.stream($graphName, {
+          sourceNode: id(start),
+          targetNode: id(end),
+          relationshipWeightProperty: 'weight'
+        })
+        YIELD path, totalCost
+        WITH path, totalCost, 
+             [node in nodes(path) | node.id] as locationIds,
+             relationships(path) as pathRels
+        WHERE size(pathRels) > 0
+        WITH locationIds, pathRels, totalCost,
+             [i in range(0, size(pathRels) - 1) | {
+               rel: pathRels[i],
+               startNodeId: locationIds[i],
+               endNodeId: locationIds[i + 1]
+             }] as relInfo
+        RETURN 
+          locationIds, 
+          [info in relInfo | info.rel] as rels,
+          [info in relInfo | info.startNodeId] as relStartIds,
+          [info in relInfo | info.endNodeId] as relEndIds,
+          totalCost as totalWeight
+        LIMIT 1
+      `;
+      
+      const pathResult = await session.run(pathQuery, { startId, endId, graphName });
+      
+      // Clean up: drop the temporary graph
+      const dropGraphQuery = `CALL gds.graph.drop($graphName) YIELD graphName`;
+      await session.run(dropGraphQuery, { graphName }).catch(() => {
+        // Ignore errors when dropping graph (it might already be dropped)
+      });
+      
+      // Check if path exists
+      if (pathResult.records.length === 0) {
+        throw { 
+          status: 404, 
+          message: `No path found between '${startLocation.name}' and '${endLocation.name}'` 
+        };
       }
-      if (weight !== null && weight !== undefined) {
-        weightMap[key] = weight;
+
+      const record = pathResult.records[0];
+      const locationIds = record.get('locationIds');
+      const rels = record.get('rels');
+      const relStartIds = record.get('relStartIds');
+      const relEndIds = record.get('relEndIds');
+      
+      // Query Neo4j to get relationship properties (distance, weight, instructions) for each relationship
+      // When going from A to B: use forwardInstruction from (A)-[:CONNECTED_TO]->(B)
+      // When going from B to A: use reverseInstruction from (B)-[:CONNECTED_TO]->(A)
+      const relationshipPairs = relStartIds.map((startId, i) => [startId, relEndIds[i]]);
+      
+      // Query to retrieve relationship properties with correct instruction based on traversal direction
+      // The seed creates: (from)-[:CONNECTED_TO {forwardInstruction}]->(to) and (to)-[:CONNECTED_TO {reverseInstruction}]->(from)
+      // When traversing from->to: use forwardInstruction from (from)-[:CONNECTED_TO]->(to)
+      // When traversing to->from: use reverseInstruction from (to)-[:CONNECTED_TO]->(from)
+      // Both relationships exist, so we need to check which direction we're going
+      const relationshipQuery = `
+        UNWIND $pairs AS pair
+        MATCH (a:Location {id: pair[0]}), (b:Location {id: pair[1]})
+        OPTIONAL MATCH (a)-[r1:CONNECTED_TO]->(b)
+        OPTIONAL MATCH (b)-[r2:CONNECTED_TO]->(a)
+        RETURN pair[0] as startId, 
+               pair[1] as endId, 
+               COALESCE(r1.distance, r2.distance, 0) as distance,
+               COALESCE(r1.weight, r2.weight, 0) as weight,
+               CASE 
+                 WHEN r1 IS NOT NULL AND r1.forwardInstruction IS NOT NULL THEN r1.forwardInstruction
+                 WHEN r1 IS NOT NULL AND r1.reverseInstruction IS NOT NULL THEN r1.reverseInstruction
+                 WHEN r2 IS NOT NULL AND r2.forwardInstruction IS NOT NULL THEN r2.forwardInstruction
+                 WHEN r2 IS NOT NULL AND r2.reverseInstruction IS NOT NULL THEN r2.reverseInstruction
+                 ELSE null
+               END as instruction
+      `;
+      
+      const relationshipResult = await session.run(relationshipQuery, { pairs: relationshipPairs });
+      
+      // Create maps for relationship properties
+      const distanceMap = {};
+      const weightMap = {};
+      const instructionMap = {};
+      
+      relationshipResult.records.forEach(rec => {
+        const startId = rec.get('startId');
+        const endId = rec.get('endId');
+        const key = `${startId}->${endId}`;
+        const distance = rec.get('distance');
+        const weight = rec.get('weight');
+        const instruction = rec.get('instruction');
+        
+        if (distance !== null && distance !== undefined) {
+          distanceMap[key] = distance;
+        }
+        if (weight !== null && weight !== undefined) {
+          weightMap[key] = weight;
+        }
+        // Store instruction even if it's an empty string, but check for null/undefined
+        if (instruction !== null && instruction !== undefined && instruction !== '') {
+          instructionMap[key] = instruction;
+        } else {
+          // Debug: log when instruction is missing
+          console.log(`Missing instruction for ${key}:`, { startId, endId, instruction, distance, weight });
+        }
+      });
+      
+      // Extract distances, weights, and instructions based on the maps
+      const distances = relStartIds.map((startId, i) => {
+        const endId = relEndIds[i];
+        const key = `${startId}->${endId}`;
+        return distanceMap[key] || weightMap[key] || 0;
+      });
+      
+      const totalDistance = distances.reduce((total, dist) => total + dist, 0);
+      
+      const instructions = relStartIds.map((startId, i) => {
+        const endId = relEndIds[i];
+        const key = `${startId}->${endId}`;
+        const instruction = instructionMap[key];
+        // Return null if instruction is not found, otherwise return the instruction
+        return instruction !== undefined ? instruction : null;
+      });
+      
+      // Debug: Log instructions to help diagnose
+      console.log('Instructions retrieved:', instructions);
+      console.log('Instruction map:', instructionMap);
+
+      // Fetch all location details from MongoDB in batch (reusing same logic as batch endpoint)
+      const locationDetails = await db.collection('locations')
+        .find({ _id: { $in: locationIds } })
+        .project({
+          _id: 1,
+          name: 1,
+          description: 1,
+          building: 1,
+          floor: 1,
+          type: 1,
+          images: 1,
+          amenities: 1,
+          accessibility: 1
+        })
+        .toArray();
+
+      // Create location map for quick lookup
+      const locationMap = {};
+      locationDetails.forEach(loc => {
+        locationMap[loc._id] = loc;
+      });
+
+      // Build enriched path steps
+      const steps = [];
+      let cumulativeDistance = 0;
+
+      for (let i = 0; i < locationIds.length; i++) {
+        const locationId = locationIds[i];
+        const location = locationMap[locationId];
+
+        if (i === 0) {
+          // First step - starting point
+          steps.push({
+            step: i + 1,
+            locationId: locationId,
+            location: location,
+            instruction: `Start at ${location.name}`,
+            distance: 0,
+            cumulativeDistance: 0,
+            type: 'start'
+          });
+        } else {
+          // Subsequent steps with navigation instructions
+          // Use the instruction from the relationship, or fallback to a generic message
+          const instruction = instructions[i - 1] ;
+          const stepDistance = distances[i - 1] || 0;
+          cumulativeDistance += stepDistance;
+
+          steps.push({
+            step: i + 1,
+            locationId: locationId,
+            location: location,
+            instruction: instruction,
+            distance: stepDistance,
+            cumulativeDistance: cumulativeDistance,
+            type: i === locationIds.length - 1 ? 'destination' : 'waypoint'
+          });
+        }
       }
-      if (instruction) {
-        instructionMap[key] = instruction;
+
+      // Calculate estimated time based on steps (more realistic for campus navigation)
+      // Each step represents a location transition, taking ~40 seconds on average
+      // This accounts for walking, orienting, reading signs, and brief pauses
+      const secondsPerStep = 40;
+      const numTransitions = Math.max(steps.length - 1, 1); // steps - 1 because first step is starting point
+      const estimatedTimeSeconds = numTransitions * secondsPerStep;
+      const estimatedTimeMinutes = Math.ceil(estimatedTimeSeconds / 60);
+      const estimatedTime = estimatedTimeMinutes === 0 ? '< 1 min' : `${estimatedTimeMinutes} min`;
+
+      return {
+        start: startId,
+        end: endId,
+        path: locationIds,
+        totalDistance: totalDistance,
+        estimatedTime: estimatedTime,
+        steps: steps,
+        metadata: {
+          startLocation: startLocation,
+          endLocation: endLocation,
+          totalSteps: steps.length,
+          generatedAt: new Date().toISOString()
+        }
+      };
+    } catch (error) {
+      // Clean up graph in case of error
+      try {
+        const dropGraphQuery = `CALL gds.graph.drop($graphName) YIELD graphName`;
+        await session.run(dropGraphQuery, { graphName });
+      } catch (dropError) {
+        // Ignore cleanup errors
       }
-    });
-    
-    // Extract distances, weights, and instructions based on the maps
-    const distances = relStartIds.map((startId, i) => {
-      const endId = relEndIds[i];
-      const key = `${startId}->${endId}`;
-      return distanceMap[key] || weightMap[key] || 0;
-    });
-    
-    const totalDistance = distances.reduce((total, dist) => total + dist, 0);
-    
-    const instructions = relStartIds.map((startId, i) => {
-      const endId = relEndIds[i];
-      const key = `${startId}->${endId}`;
-      return instructionMap[key] || null;
-    });
-
-    // Fetch all location details from MongoDB in batch (reusing same logic as batch endpoint)
-    const locationDetails = await db.collection('locations')
-      .find({ _id: { $in: locationIds } })
-      .project({
-        _id: 1,
-        name: 1,
-        description: 1,
-        building: 1,
-        floor: 1,
-        type: 1,
-        images: 1,
-        amenities: 1,
-        accessibility: 1
-      })
-      .toArray();
-
-    // Create location map for quick lookup
-    const locationMap = {};
-    locationDetails.forEach(loc => {
-      locationMap[loc._id] = loc;
-    });
-
-    // Build enriched path steps
-    const steps = [];
-    let cumulativeDistance = 0;
-
-    for (let i = 0; i < locationIds.length; i++) {
-      const locationId = locationIds[i];
-      const location = locationMap[locationId];
-
-      if (i === 0) {
-        // First step - starting point
-        steps.push({
-          step: i + 1,
-          locationId: locationId,
-          location: location,
-          instruction: `Start at ${location.name}`,
-          distance: 0,
-          cumulativeDistance: 0,
-          type: 'start'
-        });
-      } else {
-        // Subsequent steps with navigation instructions
-        // Use the instruction from the relationship, or fallback to a generic message
-        const instruction = instructions[i - 1] ;
-        const stepDistance = distances[i - 1] || 0;
-        cumulativeDistance += stepDistance;
-
-        steps.push({
-          step: i + 1,
-          locationId: locationId,
-          location: location,
-          instruction: instruction,
-          distance: stepDistance,
-          cumulativeDistance: cumulativeDistance,
-          type: i === locationIds.length - 1 ? 'destination' : 'waypoint'
-        });
+      
+      // Check if GDS is not available - show the actual error message
+      if (error.message && (error.message.toLowerCase().includes('gds') || error.message.toLowerCase().includes('graph data science'))) {
+        throw { 
+          status: 503, 
+          message: error.message,
+          details: error.stack || error.toString()
+        };
       }
+      throw error;
     }
-
-    // Calculate estimated time based on steps (more realistic for campus navigation)
-    // Each step represents a location transition, taking ~40 seconds on average
-    // This accounts for walking, orienting, reading signs, and brief pauses
-    const secondsPerStep = 40;
-    const numTransitions = Math.max(steps.length - 1, 1); // steps - 1 because first step is starting point
-    const estimatedTimeSeconds = numTransitions * secondsPerStep;
-    const estimatedTimeMinutes = Math.ceil(estimatedTimeSeconds / 60);
-    const estimatedTime = estimatedTimeMinutes === 0 ? '< 1 min' : `${estimatedTimeMinutes} min`;
-
-    return {
-      start: startId,
-      end: endId,
-      path: locationIds,
-      totalDistance: totalDistance,
-      estimatedTime: estimatedTime,
-      steps: steps,
-      metadata: {
-        startLocation: startLocation,
-        endLocation: endLocation,
-        totalSteps: steps.length,
-        generatedAt: new Date().toISOString()
-      }
-    };
   } finally {
     await session.close();
   }
